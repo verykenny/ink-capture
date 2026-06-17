@@ -12,10 +12,18 @@
 
 **As of 2026-06-16:**
 
-- Repo is **docs-only** — nothing scaffolded, installed, or built yet.
-- **This plan lives in PR #4** (`chore/mvp-plan` → `development`), pending
-  review/merge. No implementation tasks (A1+) have started.
-- **Next action:** Task A1 (`chore/scaffold-bare-rn`) — see §3 "Do this first".
+- **A1 is done** (`chore/scaffold-bare-rn`): bare **React Native 0.86.0** +
+  TypeScript (strict) scaffolded, New Architecture ON, `react-native-vision-camera`
+  **v4.7.3** installed with camera/microphone permissions wired (iOS `Info.plist` +
+  Android manifest), a minimal camera-permission "hello" screen at
+  `src/app/App.tsx`, the `src/` placeholder tree, and a real README "Getting
+  Started". `npx tsc --noEmit` is clean. Bundle id `com.verykenny.inkcapture`.
+  - vision-camera was pinned to **v4** (not the newer v5, which mandates the
+    `react-native-nitro-modules`/`react-native-nitro-image` native deps — a
+    heavier, ask-first footprint). Frame-processor/worklets deps are deferred to
+    **D1**.
+- **Next action:** Task **A2** (`chore/dev-tooling-ci`) — ESLint/Prettier
+  hardening, Jest + RTL, npm scripts, and the CI gate. See §3 / the A2 task.
 
 **Settled decisions (don't re-litigate):**
 
