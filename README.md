@@ -31,18 +31,27 @@ deck building, and pricing are explicitly out of scope for the MVP.
 
 ---
 
-## Proposed tech stack
+## Tech stack
 
-> **Proposed — pending confirmation.** Nothing below is installed or committed
-> yet. These are recommendations to be confirmed before any code is written.
+> **Confirmed direction** (not yet installed/scaffolded). The framework and
+> recognition backend are decided; items marked _TBD_ remain open and will be
+> settled during scaffolding.
 
-- **App framework:** React Native + TypeScript (strict mode)
+- **App framework:** **Bare React Native + TypeScript** (strict mode) —
+  _confirmed_. Bare (not Expo-managed) so on-device vision/frame processing has
+  full native access.
 - **Camera capture:** [`react-native-vision-camera`](https://github.com/mrousavy/react-native-vision-camera)
+- **Recognition backend (MVP):** **On-device OCR + fuzzy catalog lookup** —
+  _confirmed_ (see [Recognition approach](#recognition-approach)). Chosen for
+  offline-first operation and no recurring API cost.
 - **Local storage:** SQLite via
   [`op-sqlite`](https://github.com/OP-Engineering/op-sqlite) or
   [`react-native-quick-sqlite`](https://github.com/margelo/react-native-quick-sqlite)
-- **State management:** TBD (lightweight store such as Zustand, or React
-  context + reducers) — to be decided during scaffolding.
+  — _TBD which library_.
+- **OCR engine:** _TBD_ — on-device text recognition (e.g. ML Kit / platform
+  Vision via a vision-camera frame processor). To be selected during scaffolding.
+- **State management:** _TBD_ (lightweight store such as Zustand, or React
+  context + reducers).
 
 ---
 
@@ -72,11 +81,15 @@ Candidate backends:
   reference card images using image hashing or feature descriptors. Fully
   offline; heavier to build and tune.
 
-**Recommendation:** start with **one** backend behind the `CardRecognizer`
-interface (most likely **(a)** for fastest path to a working demo, or **(b)** if
-we prioritize offline-first), and keep the others as future implementations. Do
-not hard-commit to a single approach yet — this is an
+**Decision (MVP):** the MVP ships with **backend (b) — on-device OCR + fuzzy
+lookup**, chosen for offline-first operation and no recurring API cost.
+Backends (a) and (c) remain candidates and stay behind the `CardRecognizer`
+interface for later. Changing the selected backend is an
 [ask-first decision](CLAUDE.md).
+
+Because (b) resolves a scan by fuzzy-matching against the cached card catalog,
+the [card data source](#card-data-source) choice is now on the critical path —
+OCR quality and catalog coverage together determine recognition accuracy.
 
 ---
 
