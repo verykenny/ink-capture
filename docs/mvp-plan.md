@@ -48,18 +48,33 @@
     done on a fresh M5 clone — the setup gotchas surfaced are now in the README
     troubleshooting notes; see also the unrelated `ios/Podfile.lock` prebuilt-hash
     follow-up flagged during that work.)
-- **Next action — `[IN PROGRESS]`:** Task **A3** (`chore/architecture-skeleton`),
-  confirmed as the active task (2026-06-17). TS path aliases and the
-  interface-only service boundaries (`CardRecognizer`, `CatalogService`,
-  `PersistenceService`). See §2 / the A3 task. With the A1 boot gate now closed,
-  adding native iOS/Android build verification to CI is also unblocked and is
-  tracked as an **optional follow-up attached to A3's PR** (it does not gate A3).
-- **A3 starting state (assessed 2026-06-17):** `tsconfig.json` has `strict: true`
-  but **no path aliases** configured yet, and the `src/` tree below `app/` is
-  confirmed all-placeholder (`.gitkeep`) — no service interfaces or domain models
-  exist, so A3 starts from a clean slate. **Alias footgun:** TS `paths` alone
-  compile but break at bundle/runtime because Metro/Babel don't read `tsconfig`;
-  A3 must wire the aliases in both layers (see the A3 acceptance in §2).
+- **A3 architecture skeleton & service interfaces is complete**
+  (`chore/architecture-skeleton`, PR #14 → `development`, merged 2026-06-17): TS
+  path aliases (`@domain`, `@services`, `@state`, `@ui`, `@lib`) wired in **both**
+  `tsconfig.json` (`baseUrl` + `paths`, bare + `/*` per alias) and
+  `babel.config.js` (`babel-plugin-module-resolver`, a dev-only/JS-only dep) —
+  `metro.config.js`/`jest.config.js` left untouched and the Jest
+  `moduleNameMapper` fallback was **not** needed. Ships interface-only service
+  ports (`CardRecognizer`, `CatalogService`,
+  `CollectionRepository`/`PersistenceService`) plus the shared `RecognitionResult`
+  family, and forward-declared placeholder domain types (`Card`,
+  `CollectionEntry`, with `Finish`/`Condition` as `string`). Adds
+  `docs/architecture.md` and a README Architecture subsection. The dual-config is
+  bundle-proven (`App.tsx` imports `APP_NAME` from `@lib`; the Android JS bundle
+  resolves it) and CI is green.
+  - **Placeholder line (A3 vs B1):** A3 ships only the contract surface. The
+    `finish = normal | foil` union, the condition grades, validation, the
+    collection-entry merge rule, and the README data-model reconciliation are all
+    **B1**. `@state`/`@ui` aliases are config-only (their `.gitkeep`s remain)
+    until **C2** populates those layers.
+  - **Optional follow-up (still open, non-gating):** native iOS/Android build
+    verification in CI — unblocked by the closed A1 boot gate; A3's PR shipped
+    without it, so do it as a fast-follow `chore/`.
+- **Next action:** Task **B1** (`feature/domain-models`) — `Card`,
+  `CollectionEntry`, the `finish`/`condition` value sets, and the pure
+  collection-entry identity/merge rule + validation, narrowing the A3
+  placeholders to the settled model (and reconciling the stale README data
+  model). See §2 / the B1 task.
 
 **Settled decisions (don't re-litigate):**
 
@@ -190,7 +205,7 @@ doctor` to the README troubleshooting notes.
   errors. Makes the DoD enforceable for everything after it.
 - **Size:** **M.** No open decision.
 
-#### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton` `[IN PROGRESS]`
+#### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton`
 
 - **Scope (in):** TS path aliases (`@domain`, `@services`, …) and the
   **interface-only** boundaries: `CardRecognizer`, `CatalogService`,
@@ -204,10 +219,10 @@ doctor` to the README troubleshooting notes.
   both `tsconfig.json` and Metro/Babel** (`babel-plugin-module-resolver` or
   `metro.config.js`) — a TS-only alias compiles but fails at bundle/runtime — and
   proven by a trivial cross-alias import that actually bundles (`npm test` and the
-  CI JS bundle check stay green).
+  CI JS bundle check stay green). — ✅ **Met (merged 2026-06-17, PR #14).**
 - **Optional follow-up (does not gate A3):** add native iOS/Android build
-  verification to CI — now unblocked by the closed A1 boot gate. Attach to this
-  PR or a fast-follow `chore/`.
+  verification to CI — now unblocked by the closed A1 boot gate. **Still open:**
+  A3's PR shipped without it; do it as a fast-follow `chore/`.
 - **Size:** **S.** Locks the contracts the rest of the plan fills in.
 
 ### Milestone B — Domain & Data
