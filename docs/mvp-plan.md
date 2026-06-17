@@ -144,11 +144,16 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 - **Scope (in):** ESLint + Prettier (RN/TS configs), Jest + React Native Testing
   Library, `lint-staged` + pre-commit hook, npm scripts (`lint`,
   `format:check`, `typecheck`, `test`), GitHub Actions running all four + a build
-  check on PRs into `development`.
+  check on PRs into `development`. **Also:** a `Brewfile` (watchman, nvm,
+  zulu@17) and a `scripts/setup.sh` that chains `nvm install`, `npm install`,
+  `bundle install`, and `bundle exec pod install` so a fresh-machine clone is one
+  command after Xcode + Android Studio are installed. Add `npx react-native
+  doctor` to the README troubleshooting notes.
 - **Out:** Feature tests (none exist yet) beyond a smoke test.
 - **Depends on:** A1.
 - **Acceptance:** CI green on the PR; a deliberately bad lint/format/type error
-  fails locally. Makes the DoD enforceable for everything after it.
+  fails locally. `bash scripts/setup.sh` on a clean checkout completes without
+  errors. Makes the DoD enforceable for everything after it.
 - **Size:** **M.** No open decision.
 
 #### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton`
