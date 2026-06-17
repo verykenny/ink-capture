@@ -17,18 +17,26 @@ phone camera, identifies them, and tracks the user's collection (quantity,
 finish, condition). See [README.md](README.md) for full scope, architecture, and
 the draft data model.
 
-### Current proposed stack (pending confirmation)
+### Current stack
 
-> Not yet installed or scaffolded. Confirm with a human before introducing code.
+> Confirmed direction; not yet installed or scaffolded. Items marked _TBD_ are
+> still open. Changing a **confirmed** item is an ask-first decision.
 
-- React Native + TypeScript (strict mode)
-- `react-native-vision-camera` for capture
-- SQLite via `op-sqlite` or `react-native-quick-sqlite` for local storage
-- Recognition behind a pluggable `CardRecognizer` interface (candidate backends:
-  cloud vision API e.g. Scrydex Vision, on-device OCR + fuzzy lookup, on-device
-  image/feature matching)
+- **Bare React Native + TypeScript** (strict mode) — _confirmed_ (bare, not
+  Expo-managed).
+- `react-native-vision-camera` for capture.
+- Recognition behind a pluggable `CardRecognizer` interface. **MVP backend:
+  on-device OCR + fuzzy catalog lookup** — _confirmed_. Other candidates (cloud
+  vision e.g. Scrydex Vision; on-device image/feature matching) remain behind
+  the interface for later.
+- OCR engine — _TBD_ (on-device text recognition, e.g. ML Kit / platform Vision
+  via a vision-camera frame processor).
+- SQLite via `op-sqlite` or `react-native-quick-sqlite` for local storage —
+  _TBD which_.
+- State management — _TBD_ (e.g. Zustand, or context + reducers).
 - Card metadata from a community catalog (LorcanaJSON / Lorcast /
-  lorcana-api.com), fetched and cached at runtime
+  lorcana-api.com), fetched and cached at runtime — _TBD which_; on the critical
+  path since OCR resolves scans by fuzzy-matching the catalog.
 
 ---
 
