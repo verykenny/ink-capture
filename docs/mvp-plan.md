@@ -10,8 +10,24 @@
 > Keep this section current as work lands — it's the handoff state for the next
 > contributor (human or agent).
 
-**As of 2026-06-16:**
+**As of 2026-06-17:**
 
+- **A2 dev tooling + CI gate is complete** (`chore/dev-tooling-ci` →
+  `development`): the four quality scripts (`lint`, `format:check`, `typecheck`,
+  `test`) are wired; Jest + React Native Testing Library run a passing `App`
+  smoke test (with a `react-native-vision-camera` mock in `jest.setup.ts`); a
+  Husky pre-commit hook runs `lint-staged` and auto-installs via the `prepare`
+  script on a fresh `npm install`; a GitHub Actions workflow gates PRs into
+  `development` on the four checks plus a JS bundle check; and a `Brewfile` +
+  `scripts/setup.sh` give a one-command machine bootstrap. Native iOS/Android CI
+  build verification is **deferred** (tied to closing the A1 boot gate below) —
+  the bundle check proves only that the JS module graph resolves.
+  - Two hardening fixes made in passing: `@react-native/jest-preset` was
+    referenced by `jest.config.js` but missing from `package.json` (it is only
+    an _optional_ peer dep of `react-native`, so `npm ci` never installed it) —
+    added as a dev dependency; and `npm run lint` now uses `--max-warnings=0`
+    because the `@react-native` config emits issues as warnings, so a bare
+    `eslint .` exited 0 and never blocked bad code.
 - **A1 scaffold is complete but NOT fully verified** (`chore/scaffold-bare-rn`,
   PR #6 → `development`): bare **React Native 0.86.0** + TypeScript (strict)
   scaffolded, New Architecture ON, `react-native-vision-camera` **v4.7.3**
@@ -31,9 +47,11 @@
     Run `npm run ios` and `npm run android`, confirm the app launches and the
     permission prompt appears, before treating A1 as truly done / before merging
     PR #6.
-- **Next action:** finish A1 verification (re-run the two builds, above), then
-  Task **A2** (`chore/dev-tooling-ci`) — ESLint/Prettier hardening, Jest + RTL,
-  npm scripts, and the CI gate. See §3 / the A2 task.
+- **Next action:** finish A1 verification (re-run the two builds, above — still
+  open; it also gates adding native build verification to CI), then Task **A3**
+  (`chore/architecture-skeleton`) — TS path aliases and the interface-only
+  service boundaries (`CardRecognizer`, `CatalogService`, `PersistenceService`).
+  See §2 / the A3 task.
 
 **Settled decisions (don't re-litigate):**
 
@@ -74,8 +92,8 @@ it. Key observations, risks, and the few things to refine:
    art, variable lighting) is the single biggest unknown. The docs already treat
    it as the riskiest part and wrap it in `CardRecognizer` — good. This plan
    exploits that interface: **build the entire scan→confirm→save loop against a
-   *stub* recognizer first**, prove the pipeline end-to-end, then swap in real
-   OCR behind the same interface. We get a runnable, testable app *before* we
+   _stub_ recognizer first**, prove the pipeline end-to-end, then swap in real
+   OCR behind the same interface. We get a runnable, testable app _before_ we
    gamble on OCR quality.
 2. **Bare RN native toolchain is the second unknown.** Bare (not Expo) means iOS
    Pods + Android Gradle + a native frame-processor for
@@ -94,7 +112,7 @@ it. Key observations, risks, and the few things to refine:
 ### Refinements to the docs (flagged, not silently changed)
 
 - **`enchanted` vs `foil` modeling — decided (2026-06-16, human-approved).** In
-  Lorcana, *enchanted* is a rarity with its own collector number, while *foil* is
+  Lorcana, _enchanted_ is a rarity with its own collector number, while _foil_ is
   a finish of an otherwise-normal card. The draft model previously listed
   `enchanted` under both `finish` (CollectionEntry) and `rarity` (Card).
   **Resolution:** `finish = normal | foil` only; enchanted and special/promo
@@ -115,7 +133,7 @@ Foundations (unavoidable horizontal layer, kept thin) → Domain & Data (pure,
 fully testable, no device needed) → a **vertical slice with a stub recognizer**
 (runnable app early) → real OCR swapped in behind the interface → hardening.
 Favoring the stub-first slice is the deliberate call: it turns the riskiest
-component into a *drop-in replacement* rather than a blocking dependency.
+component into a _drop-in replacement_ rather than a blocking dependency.
 
 ---
 
@@ -124,11 +142,12 @@ component into a *drop-in replacement* rather than a blocking dependency.
 Every task branches off latest `development`, PRs into `development`, uses
 Conventional Commits, and is "done" per the CLAUDE.md DoD (builds/runs +
 lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
-*task-specific* acceptance criteria are called out below.
+_task-specific_ acceptance criteria are called out below.
 
 ### Milestone A — Foundations
 
 #### A1. Scaffold bare React Native + TypeScript (strict) — `chore/scaffold-bare-rn`
+
 - **Scope (in):** `npx @react-native-community/cli init` (bare), TS
   `strict: true`, runnable iOS + Android "hello" app, `react-native-vision-camera`
   installed with camera/microphone permissions wired in `Info.plist` +
@@ -141,6 +160,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 - **Size:** **L.** No open decision, but the riskiest setup — do it carefully.
 
 #### A2. Dev tooling + CI gate — `chore/dev-tooling-ci`
+
 - **Scope (in):** ESLint + Prettier (RN/TS configs), Jest + React Native Testing
   Library, `lint-staged` + pre-commit hook, npm scripts (`lint`,
   `format:check`, `typecheck`, `test`), GitHub Actions running all four + a build
@@ -148,7 +168,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
   zulu@17) and a `scripts/setup.sh` that chains `nvm install`, `npm install`,
   `bundle install`, and `bundle exec pod install` so a fresh-machine clone is one
   command after Xcode + Android Studio are installed. Add `npx react-native
-  doctor` to the README troubleshooting notes.
+doctor` to the README troubleshooting notes.
 - **Out:** Feature tests (none exist yet) beyond a smoke test.
 - **Depends on:** A1.
 - **Acceptance:** CI green on the PR; a deliberately bad lint/format/type error
@@ -157,6 +177,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 - **Size:** **M.** No open decision.
 
 #### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton`
+
 - **Scope (in):** TS path aliases (`@domain`, `@services`, …) and the
   **interface-only** boundaries: `CardRecognizer`, `CatalogService`,
   `PersistenceService` / `CollectionRepository`, plus shared result types
@@ -171,6 +192,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 ### Milestone B — Domain & Data
 
 #### B1. Domain models + rules — `feature/domain-models`
+
 - **Scope (in):** `Card`, `CollectionEntry`, `finish`/`condition` enums, and pure
   functions: collection-entry **identity/merge rule** (card + finish + condition
   ⇒ same stack, increment quantity), validation. Framework-free.
@@ -183,6 +205,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
   number/rarity), not finishes. Update the `README.md` data model in this PR too.
 
 #### B2. Catalog service (sync-and-cache) — `feature/catalog-service`
+
 - **Scope (in):** Fetch `allCards.json` from LorcanaJSON; **map LorcanaJSON →
   `Card`**; cache with version/ETag check (download once, refresh on version
   change); build local index on collector number + normalized name. Add
@@ -196,6 +219,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 - **Size:** **M.** Flag `react-native-config` as a small native dep in the PR.
 
 #### B3. Persistence: SQLite schema + collection repository — `feature/persistence-sqlite`
+
 - **Scope (in):** Choose SQLite lib, init DB, migration runner, tables for
   catalog cache + `CollectionEntry`, implement `CollectionRepository` (CRUD +
   merge-on-insert using B1's rule).
@@ -211,6 +235,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 ### Milestone C — Vertical slice with a stub recognizer
 
 #### C1. Recognition matching engine + stub recognizer — `feature/recognition-matching`
+
 - **Scope (in):** Pure matching — **exact collector-number hit first, fuzzy
   normalized-name fallback** against the cached catalog, returning ranked
   candidates + confidence. Plus a `StubCardRecognizer` (returns a fixed/manually
@@ -223,6 +248,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
   Levenshtein on normalized names.
 
 #### C2. Scan → confirm → add-to-collection slice + browse — `feature/scan-to-collection-slice`
+
 - **Scope (in):** Navigation, camera/scan screen (capture a frame), confirm sheet
   (top candidate + finish/condition pickers), write via `CollectionRepository`,
   and a collection list screen that reads it back. Wired with **StubRecognizer +
@@ -238,6 +264,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 ### Milestone D — Real recognition (swap the stub)
 
 #### D1. OCR frame processor + `OcrCardRecognizer` — `feature/ocr-recognition`
+
 - **Scope (in):** A vision-camera **frame processor** that OCRs name + collector
   number, feeding C1's matcher; ship as `OcrCardRecognizer` and swap it in behind
   `CardRecognizer` (one wiring change). Start with a short spike to validate
@@ -255,6 +282,7 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
   frame-processor plugin as a heavy native dep → **ask-first** before adding.
 
 #### D2. Recognition tuning & manual fallback — `feature/recognition-tuning`
+
 - **Scope (in):** Confidence thresholds, optional multi-frame capture, graceful
   fallback to **manual search/correction** when confidence is low.
 - **Out:** Second backend, pricing.
@@ -277,25 +305,25 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 
 **Start with `chore/scaffold-bare-rn` (Task A1).** Bare RN +
 `react-native-vision-camera` native setup is the largest unknown and a hard
-prerequisite for *everything* — there's no app to run, lint, or test against
+prerequisite for _everything_ — there's no app to run, lint, or test against
 until it exists, and the DoD ("builds and the app runs") can't be met by any
 other PR first. Land a clean, runnable shell with camera permissions, then
 immediately follow with A2 so CI enforces the quality bar on every subsequent
 PR. Pure-TS domain work (B1) is tempting since it needs no device, but it can't
-be *run* and would sit unverifiable until the scaffold catches up — foundation
+be _run_ and would sit unverifiable until the scaffold catches up — foundation
 first.
 
 ---
 
 ## 4. MVP cut line
 
-| Tier | Tasks | Rationale |
-|------|-------|-----------|
-| **MVP** | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2) | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable. |
-| **v1** | D2, E1, E2, E3 | Manual correction, edit/remove, error/offline states, stats/search — the "hardening + improved UX" the roadmap lists. |
-| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later. |
+| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable. |
+| **v1**                 | D2, E1, E2, E3                                                                                       | Manual correction, edit/remove, error/offline states, stats/search — the "hardening + improved UX" the roadmap lists.                        |
+| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                           |
 
-**Nuance:** C2 ships first with the *stub* recognizer (fully runnable, just not
+**Nuance:** C2 ships first with the _stub_ recognizer (fully runnable, just not
 "real"). D1 is what makes it MVP-grade. If OCR accuracy disappoints in the D1
 spike, the stub-first design means you can ship a "manual search + add" MVP and
 treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
@@ -304,11 +332,11 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 
 ## Open decisions & their forcing PRs
 
-| Decision | Forced by | Recommendation |
-|----------|-----------|----------------|
-| SQLite library | B3 | **op-sqlite** |
-| State management | C2 | **Zustand** |
-| OCR engine | D1 | **ML Kit Text Recognition** (cross-platform, on-device) |
+| Decision         | Forced by | Recommendation                                          |
+| ---------------- | --------- | ------------------------------------------------------- |
+| SQLite library   | B3        | **op-sqlite**                                           |
+| State management | C2        | **Zustand**                                             |
+| OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device) |
 
 The **enchanted-vs-foil** modeling for B1 is now settled (`finish = normal |
 foil`; enchanted/special are distinct `Card` rows). One item still needs a human
