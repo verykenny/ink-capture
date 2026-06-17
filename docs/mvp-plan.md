@@ -36,11 +36,13 @@ it. Key observations, risks, and the few things to refine:
 
 ### Refinements to the docs (flagged, not silently changed)
 
-- **`enchanted` vs `foil` modeling.** In Lorcana, *enchanted* is a rarity with
-  its own collector number, while *foil* is a finish of an otherwise-normal
-  card. The draft model lists `enchanted` under both `finish` (CollectionEntry)
-  and `rarity` (Card). Recommend treating `enchanted` as a distinct `Card`
-  (rarity) and keeping `finish = normal | foil`. Needs a human confirm.
+- **`enchanted` vs `foil` modeling — decided (2026-06-16, human-approved).** In
+  Lorcana, *enchanted* is a rarity with its own collector number, while *foil* is
+  a finish of an otherwise-normal card. The draft model previously listed
+  `enchanted` under both `finish` (CollectionEntry) and `rarity` (Card).
+  **Resolution:** `finish = normal | foil` only; enchanted and special/promo
+  printings are distinct `Card` rows (own collector number/rarity), not finishes.
+  Encode this in B1 (code + README data model together).
 - **`.env` won't be read by bare RN out of the box.** `.env.example` documents
   `CATALOG_API_BASE_URL` etc., but bare RN needs `react-native-config` (or
   similar) to surface env vars to native + JS. Add it in the catalog PR; flag it
@@ -114,9 +116,9 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 - **Depends on:** A3.
 - **Acceptance:** Unit tests cover merge/identity and the enchanted-vs-foil
   decision. No RN imports.
-- **Size:** **S–M.** **Forces:** the `enchanted` modeling question — recommend
-  `enchanted` as a distinct `Card` (rarity), keep `finish = normal | foil`.
-  Confirm with a human.
+- **Size:** **S–M.** **Model decision (settled):** `finish = normal | foil`;
+  enchanted and special/promo printings are distinct `Card` rows (own collector
+  number/rarity), not finishes. Update the `README.md` data model in this PR too.
 
 #### B2. Catalog service (sync-and-cache) — `feature/catalog-service`
 - **Scope (in):** Fetch `allCards.json` from LorcanaJSON; **map LorcanaJSON →
@@ -246,6 +248,7 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 | State management | C2 | **Zustand** |
 | OCR engine | D1 | **ML Kit Text Recognition** (cross-platform, on-device) |
 
-Two items need a human confirm before their PR: the **enchanted-vs-foil**
-modeling (B1) and the **ML Kit frame-processor native dep** (D1, ask-first per
-CLAUDE.md).
+The **enchanted-vs-foil** modeling for B1 is now settled (`finish = normal |
+foil`; enchanted/special are distinct `Card` rows). One item still needs a human
+confirm before its PR: the **ML Kit frame-processor native dep** (D1, ask-first
+per CLAUDE.md).
