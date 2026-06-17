@@ -185,49 +185,50 @@ ink-capture/
 
 A card as defined by the upstream catalog. Read-only reference data.
 
-| Field               | Type     | Notes                                            |
-| ------------------- | -------- | ------------------------------------------------ |
-| `id`                | string   | Stable catalog identifier                        |
-| `name`              | string   | Card name                                        |
-| `version`           | string?  | Subtitle / version (e.g. "Brave Little Tailor")  |
-| `setCode`           | string   | Set identifier                                   |
-| `collectorNumber`   | string   | Number within the set                            |
-| `rarity`            | string   | e.g. Common … Legendary / Enchanted              |
-| `availableFinishes` | string[] | Finishes the card can exist in                   |
-| `imageUrl`          | string?  | Remote image URL (fetched at runtime, not stored)|
+| Field               | Type     | Notes                                             |
+| ------------------- | -------- | ------------------------------------------------- |
+| `id`                | string   | Stable catalog identifier                         |
+| `name`              | string   | Card name                                         |
+| `version`           | string?  | Subtitle / version (e.g. "Brave Little Tailor")   |
+| `setCode`           | string   | Set identifier                                    |
+| `collectorNumber`   | string   | Number within the set                             |
+| `rarity`            | string   | e.g. Common … Legendary / Enchanted               |
+| `availableFinishes` | string[] | Finishes the card can exist in                    |
+| `imageUrl`          | string?  | Remote image URL (fetched at runtime, not stored) |
 
 ### CollectionEntry (an owned copy)
 
 A user-owned record pointing at a `Card`.
 
-| Field        | Type     | Notes                                              |
-| ------------ | -------- | -------------------------------------------------- |
-| `id`         | string   | Local identifier                                   |
-| `cardId`     | string   | References `Card.id`                                |
-| `quantity`   | integer  | Number owned of this card+finish+condition combo   |
-| `finish`     | enum     | e.g. `normal` \| `foil` \| `enchanted` \| `special`|
-| `condition`  | enum     | e.g. `NM` \| `LP` \| `MP` \| `HP` \| `DMG`         |
-| `notes`      | string?  | Free-form user notes                               |
-| `addedAt`    | datetime | When the entry was created                         |
-| `updatedAt`  | datetime | Last modified                                      |
+| Field       | Type     | Notes                                               |
+| ----------- | -------- | --------------------------------------------------- |
+| `id`        | string   | Local identifier                                    |
+| `cardId`    | string   | References `Card.id`                                |
+| `quantity`  | integer  | Number owned of this card+finish+condition combo    |
+| `finish`    | enum     | e.g. `normal` \| `foil` \| `enchanted` \| `special` |
+| `condition` | enum     | e.g. `NM` \| `LP` \| `MP` \| `HP` \| `DMG`          |
+| `notes`     | string?  | Free-form user notes                                |
+| `addedAt`   | datetime | When the entry was created                          |
+| `updatedAt` | datetime | Last modified                                       |
 
 ### Deck (optional — stretch)
 
 A named list of cards for play/brewing.
 
-| Field       | Type     | Notes                            |
-| ----------- | -------- | -------------------------------- |
-| `id`        | string   | Local identifier                 |
-| `name`      | string   | Deck name                        |
-| `cards`     | array    | `{ cardId, quantity }` entries   |
-| `createdAt` | datetime |                                  |
-| `updatedAt` | datetime |                                  |
+| Field       | Type     | Notes                          |
+| ----------- | -------- | ------------------------------ |
+| `id`        | string   | Local identifier               |
+| `name`      | string   | Deck name                      |
+| `cards`     | array    | `{ cardId, quantity }` entries |
+| `createdAt` | datetime |                                |
+| `updatedAt` | datetime |                                |
 
 ---
 
 ## Roadmap
 
 **MVP**
+
 - Camera scan → recognize → add to local collection (quantity, finish,
   condition).
 - One recognition backend behind the `CardRecognizer` interface.
@@ -235,12 +236,14 @@ A named list of cards for play/brewing.
 - Browse/search the local collection.
 
 **v1**
+
 - Edit/remove entries; manual add/correction when recognition is uncertain.
 - Collection stats (counts by set, completion %).
 - Improved scanning UX (multi-frame capture, confidence display).
 - Hardening: error states, offline behavior, basic tests.
 
 **Stretch goals**
+
 - Deck building.
 - A second recognition backend + on-device/offline recognition.
 - Pricing data, export/import, and optional cloud sync/sharing.
@@ -284,6 +287,19 @@ See React Native's
 
 ### Install
 
+**One-command setup (recommended).** After Homebrew, Xcode, and Android Studio
+are installed (see Prerequisites), bootstrap everything — Homebrew packages, the
+pinned Node, JS deps (which installs the Git hook), and iOS Pods:
+
+```sh
+brew bundle              # watchman, nvm, zulu@17 (from the Brewfile)
+bash scripts/setup.sh    # nvm install/use -> npm install -> bundle install -> pod install
+```
+
+`scripts/setup.sh` is idempotent, so it is safe to re-run.
+
+**Manual steps (fallback)** — equivalent to what `setup.sh` runs:
+
 ```sh
 nvm use            # Node 20 (per .nvmrc)
 npm install        # JS dependencies
@@ -310,6 +326,15 @@ back-camera preview (the iOS Simulator has no camera hardware, so it shows a
 "granted, no device" state — use an Android emulator's virtual camera or a real
 device to see the preview).
 
+### Troubleshooting
+
+If a build fails or the environment looks off, run the React Native environment
+doctor — it checks Node, watchman, the iOS/Android toolchains, and more:
+
+```sh
+npx react-native doctor
+```
+
 ### Environment configuration
 
 Required environment variables are documented in
@@ -323,9 +348,27 @@ Before contributing, read the working agreement in [CLAUDE.md](CLAUDE.md).
 
 ## Contributing
 
-> Placeholder.
-
 This project uses a development-branch workflow with pull requests and
 Conventional Commits. **Before contributing, read [CLAUDE.md](CLAUDE.md)** — it
 defines the git workflow, code-quality bar, secrets handling, and IP guardrails
 that all contributors (human and AI) must follow.
+
+### Quality gate
+
+Four checks make up the local Definition-of-Done gate. Run them before opening a
+PR:
+
+```sh
+npm run lint           # ESLint (React Native + TypeScript rules), warnings fail the gate
+npm run format:check   # Prettier formatting check (npm run format to auto-fix)
+npm run typecheck      # tsc --noEmit (TypeScript strict mode)
+npm test               # Jest + React Native Testing Library
+```
+
+A **Husky pre-commit hook** runs `lint-staged` automatically on every commit,
+auto-fixing lint/format issues on staged files (and aborting the commit on
+unfixable lint errors). The hook is installed for you when `npm install` runs
+its `prepare` script — no manual setup on a fresh clone.
+
+**GitHub Actions** runs all four checks plus a JS bundle check on every pull
+request into `development`, so the same gate is enforced in CI.

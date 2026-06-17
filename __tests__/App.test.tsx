@@ -3,11 +3,10 @@
  */
 
 import React from 'react';
-import ReactTestRenderer from 'react-test-renderer';
+import { render, screen } from '@testing-library/react-native';
 import App from '../src/app/App';
 
-test('renders correctly', async () => {
-  await ReactTestRenderer.act(() => {
-    ReactTestRenderer.create(<App />);
-  });
+test('renders the Ink Capture title', () => {
+  render(<App />);
+  expect(screen.getByText('Ink Capture')).toBeOnTheScreen();
 });

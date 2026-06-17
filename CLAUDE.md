@@ -11,7 +11,7 @@ changes, update both.
 
 ## Project summary
 
-**Lorcana Card Recognition & Tracker** (working title: *ink-capture*) is a
+**Lorcana Card Recognition & Tracker** (working title: _ink-capture_) is a
 cross-platform mobile app that scans physical Disney Lorcana cards with the
 phone camera, identifies them, and tracks the user's collection (quantity,
 finish, condition). See [README.md](README.md) for full scope, architecture, and
@@ -62,13 +62,16 @@ These are non-negotiable.
   e.g. `feat(scan): ...`).
 
 ### Before starting work
+
 1. Branch from the **latest** `development` (pull/fetch first).
 2. Keep PRs **small and focused** — one concern per branch.
 3. **Rebase/update from `development`** before opening the PR so it merges
    cleanly.
 
 ### Pull request requirements
+
 Every PR description must state:
+
 - **What** changed.
 - **Why** it changed.
 - **How** it was tested.
@@ -117,7 +120,9 @@ alongside the code in the same PR, never deferred to a follow-up.
 > testable logic arrives with a harness to test it.
 
 ### Definition of done
+
 A change is "done" when:
+
 1. It builds and the app runs (once the app exists).
 2. Lint, format, and type checks pass.
 3. New/changed logic was built **test-first** (red → green → refactor) where
@@ -157,6 +162,7 @@ Disney.
 ## Ask-first rules
 
 Confirm with a human **before**:
+
 - Adding any **new paid service** or anything that incurs cost.
 - **Changing the chosen recognition backend** (or committing to one for the
   first time).

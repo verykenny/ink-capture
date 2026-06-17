@@ -36,6 +36,7 @@ function App(): React.JSX.Element {
   // Trigger the OS permission prompt once on first mount if not yet granted.
   useEffect(() => {
     if (!hasPermission) {
+      // eslint-disable-next-line no-void -- mark the fire-and-forget promise as intentionally unawaited
       void requestPermission().finally(() => setDidRequest(true));
     }
   }, [hasPermission, requestPermission]);
@@ -59,8 +60,10 @@ function App(): React.JSX.Element {
             <TouchableOpacity
               style={styles.button}
               onPress={() => {
+                // eslint-disable-next-line no-void -- mark the fire-and-forget promise as intentionally unawaited
                 void Linking.openSettings();
-              }}>
+              }}
+            >
               <Text style={styles.buttonText}>Open Settings</Text>
             </TouchableOpacity>
           </View>
