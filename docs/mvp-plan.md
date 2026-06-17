@@ -79,6 +79,12 @@ treat as the default unless a human overrides:
 - **Secrets:** MVP backend needs no API key; the commented `RECOGNITION_API_KEY`
   lines in `.env.example` are correctly forward-looking — leave as-is, and don't
   wire a paid backend without the ask-first step.
+- **Tech debt (tracked, deferred):** the Ruby toolchain is unpinned — setup
+  relies on system Ruby 2.6.10 + the Bundler 1.17.2 pin, which is fragile against
+  a newer default Ruby. Modernization plan (rbenv + `.ruby-version` + regenerated
+  lockfile) is captured in
+  [ruby-toolchain-modernization.md](ruby-toolchain-modernization.md). Low urgency,
+  ask-first.
 
 ## 1. Architectural assessment
 
