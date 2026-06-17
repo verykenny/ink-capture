@@ -44,6 +44,9 @@ deck building, and pricing are explicitly out of scope for the MVP.
 - **Recognition backend (MVP):** **On-device OCR + fuzzy catalog lookup** —
   _confirmed_ (see [Recognition approach](#recognition-approach)). Chosen for
   offline-first operation and no recurring API cost.
+- **Card catalog:** **[LorcanaJSON](https://lorcanajson.org/)** bulk data,
+  cached on-device — _confirmed_ (Lorcast optional secondary; see
+  [Card data source](#card-data-source)).
 - **Local storage:** SQLite via
   [`op-sqlite`](https://github.com/OP-Engineering/op-sqlite) or
   [`react-native-quick-sqlite`](https://github.com/margelo/react-native-quick-sqlite)
@@ -96,14 +99,28 @@ OCR quality and catalog coverage together determine recognition accuracy.
 ## Card data source
 
 The app needs Lorcana **card metadata** (set, name, collector number, finishes,
-etc.) to resolve a scan into a known card. Candidate community catalogs:
+etc.) to resolve a scan into a known card.
 
-- **[LorcanaJSON](https://lorcanajson.org/)**
-- **[Lorcast](https://lorcast.com/)** (API)
-- **[lorcana-api.com](https://lorcana-api.com/)**
+**Chosen primary catalog: [LorcanaJSON](https://lorcanajson.org/)** — _confirmed_.
+It is the only true **bulk** source (a single `allCards.json`), which suits the
+offline-first OCR backend: the catalog is downloaded once, cached on-device, and
+matched against locally. It also has the richest fields (full identifier =
+collector number + set, all finish/foil/enchanted variants, multi-resolution
+image URLs) and is stable and versioned.
+
+- **[Lorcast](https://lorcast.com/)** (API) — _optional secondary_, kept behind
+  the catalog-service interface for on-demand image/price fetches when bulk
+  caching them isn't wanted.
+- **[lorcana-api.com](https://lorcana-api.com/)** — fallback; its online
+  `/fuzzy/` search is largely redundant once matching happens locally.
+
+Because the OCR backend resolves a scan by fuzzy-matching the **cached** catalog,
+the catalog service is a **sync-and-cache** module: download → store in SQLite →
+build a local index on collector number + normalized name. Matching then tries an
+exact collector-number hit first, with fuzzy name matching as the fallback.
 
 Card data is **fetched and cached at runtime**, not bundled into this repo (see
-[Legal / IP](#legal--ip)). Final choice of catalog is pending confirmation.
+[Legal / IP](#legal--ip)).
 
 ---
 

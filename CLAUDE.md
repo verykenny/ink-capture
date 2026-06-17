@@ -34,9 +34,12 @@ the draft data model.
 - SQLite via `op-sqlite` or `react-native-quick-sqlite` for local storage —
   _TBD which_.
 - State management — _TBD_ (e.g. Zustand, or context + reducers).
-- Card metadata from a community catalog (LorcanaJSON / Lorcast /
-  lorcana-api.com), fetched and cached at runtime — _TBD which_; on the critical
-  path since OCR resolves scans by fuzzy-matching the catalog.
+- **Card catalog: LorcanaJSON** (bulk `allCards.json`, cached on-device) —
+  _confirmed_. Chosen because it is the only true bulk source, fitting the
+  offline-first OCR backend that matches against a cached catalog locally.
+  Lorcast is an _optional secondary_ (on-demand images/prices behind the
+  catalog-service interface); lorcana-api.com is a fallback. Card data is
+  fetched and cached at runtime, never committed.
 
 ---
 
