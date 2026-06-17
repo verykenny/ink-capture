@@ -12,18 +12,28 @@
 
 **As of 2026-06-16:**
 
-- **A1 is done** (`chore/scaffold-bare-rn`): bare **React Native 0.86.0** +
-  TypeScript (strict) scaffolded, New Architecture ON, `react-native-vision-camera`
-  **v4.7.3** installed with camera/microphone permissions wired (iOS `Info.plist` +
-  Android manifest), a minimal camera-permission "hello" screen at
-  `src/app/App.tsx`, the `src/` placeholder tree, and a real README "Getting
-  Started". `npx tsc --noEmit` is clean. Bundle id `com.verykenny.inkcapture`.
+- **A1 scaffold is complete but NOT fully verified** (`chore/scaffold-bare-rn`,
+  PR #6 → `development`): bare **React Native 0.86.0** + TypeScript (strict)
+  scaffolded, New Architecture ON, `react-native-vision-camera` **v4.7.3**
+  installed with camera/microphone permissions wired (iOS `Info.plist` + Android
+  manifest), a minimal camera-permission "hello" screen at `src/app/App.tsx`, the
+  `src/` placeholder tree, and a real README "Getting Started". `npx tsc --noEmit`
+  is clean and iOS `pod install` succeeds (77 pods, vision-camera links with frame
+  processors disabled). Bundle id `com.verykenny.inkcapture`.
   - vision-camera was pinned to **v4** (not the newer v5, which mandates the
     `react-native-nitro-modules`/`react-native-nitro-image` native deps — a
     heavier, ask-first footprint). Frame-processor/worklets deps are deferred to
     **D1**.
-- **Next action:** Task **A2** (`chore/dev-tooling-ci`) — ESLint/Prettier
-  hardening, Jest + RTL, npm scripts, and the CI gate. See §3 / the A2 task.
+  - ⚠️ **Still pending — re-run both builds to close the A1 acceptance gate:** the
+    iOS `xcodebuild` and Android Gradle builds were interrupted mid-compile, so the
+    app has **not yet been confirmed to boot** on an iOS simulator or Android
+    emulator, and the camera-permission prompt has not been observed end-to-end.
+    Run `npm run ios` and `npm run android`, confirm the app launches and the
+    permission prompt appears, before treating A1 as truly done / before merging
+    PR #6.
+- **Next action:** finish A1 verification (re-run the two builds, above), then
+  Task **A2** (`chore/dev-tooling-ci`) — ESLint/Prettier hardening, Jest + RTL,
+  npm scripts, and the CI gate. See §3 / the A2 task.
 
 **Settled decisions (don't re-litigate):**
 
