@@ -4,7 +4,20 @@
     "types": ["jest"],
     "strict": true,
     "noImplicitAny": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@domain": ["src/domain"],
+      "@domain/*": ["src/domain/*"],
+      "@services": ["src/services"],
+      "@services/*": ["src/services/*"],
+      "@state": ["src/state"],
+      "@state/*": ["src/state/*"],
+      "@ui": ["src/ui"],
+      "@ui/*": ["src/ui/*"],
+      "@lib": ["src/lib"],
+      "@lib/*": ["src/lib/*"]
+    }
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]

@@ -26,6 +26,7 @@ import {
   useCameraDevice,
   useCameraPermission,
 } from 'react-native-vision-camera';
+import { APP_NAME } from '@lib';
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -44,7 +45,7 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <Text style={styles.title}>Ink Capture</Text>
+      <Text style={styles.title}>{APP_NAME}</Text>
       <Text style={styles.subtitle}>A1 scaffold — camera permission check</Text>
 
       <View style={styles.preview}>
