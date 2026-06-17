@@ -48,12 +48,18 @@
     done on a fresh M5 clone — the setup gotchas surfaced are now in the README
     troubleshooting notes; see also the unrelated `ios/Podfile.lock` prebuilt-hash
     follow-up flagged during that work.)
-- **Next action:** Task **A3** (`chore/architecture-skeleton`) — TS path aliases
-  and the interface-only service boundaries (`CardRecognizer`, `CatalogService`,
+- **Next action — `[IN PROGRESS]`:** Task **A3** (`chore/architecture-skeleton`),
+  confirmed as the active task (2026-06-17). TS path aliases and the
+  interface-only service boundaries (`CardRecognizer`, `CatalogService`,
   `PersistenceService`). See §2 / the A3 task. With the A1 boot gate now closed,
-  adding native iOS/Android build verification to CI is also unblocked (optional
-  follow-up).
-  See §2 / the A3 task.
+  adding native iOS/Android build verification to CI is also unblocked and is
+  tracked as an **optional follow-up attached to A3's PR** (it does not gate A3).
+- **A3 starting state (assessed 2026-06-17):** `tsconfig.json` has `strict: true`
+  but **no path aliases** configured yet, and the `src/` tree below `app/` is
+  confirmed all-placeholder (`.gitkeep`) — no service interfaces or domain models
+  exist, so A3 starts from a clean slate. **Alias footgun:** TS `paths` alone
+  compile but break at bundle/runtime because Metro/Babel don't read `tsconfig`;
+  A3 must wire the aliases in both layers (see the A3 acceptance in §2).
 
 **Settled decisions (don't re-litigate):**
 
@@ -184,7 +190,7 @@ doctor` to the README troubleshooting notes.
   errors. Makes the DoD enforceable for everything after it.
 - **Size:** **M.** No open decision.
 
-#### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton`
+#### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton` `[IN PROGRESS]`
 
 - **Scope (in):** TS path aliases (`@domain`, `@services`, …) and the
   **interface-only** boundaries: `CardRecognizer`, `CatalogService`,
@@ -194,7 +200,14 @@ doctor` to the README troubleshooting notes.
 - **Depends on:** A1 (A2 ideally first so it's linted).
 - **Acceptance:** Interfaces compile; dependency direction documented (UI→State→
   Domain; Domain depends only on these interfaces). Short `docs/architecture.md`
-  or README section pointing to the interfaces.
+  or README section pointing to the interfaces. **Path aliases must be wired in
+  both `tsconfig.json` and Metro/Babel** (`babel-plugin-module-resolver` or
+  `metro.config.js`) — a TS-only alias compiles but fails at bundle/runtime — and
+  proven by a trivial cross-alias import that actually bundles (`npm test` and the
+  CI JS bundle check stay green).
+- **Optional follow-up (does not gate A3):** add native iOS/Android build
+  verification to CI — now unblocked by the closed A1 boot gate. Attach to this
+  PR or a fast-follow `chore/`.
 - **Size:** **S.** Locks the contracts the rest of the plan fills in.
 
 ### Milestone B — Domain & Data
