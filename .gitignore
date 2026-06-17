@@ -53,11 +53,24 @@ android/build/
 android/local.properties
 android/.idea/
 android/captures/
+android/.kotlin/
 *.keystore
 !debug.keystore
 *.apk
 *.aab
 *.hprof
+
+# === Native build caches (RN New Architecture / NDK) ===
+**/.cxx/
+
+# === Ruby / Bundler (iOS CocoaPods via bundle exec) ===
+/vendor/bundle/
+
+# === Fastlane (if added later) ===
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
 
 # === Bundlers / caches ===
 *.jsbundle

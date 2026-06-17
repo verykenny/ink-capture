@@ -9,9 +9,12 @@ with quantity, finish, and condition. The goal is a fast, offline-friendly way
 for players and collectors to catalog what they own without manually typing in
 every card.
 
-> **Status:** Early bootstrap. This repository currently contains documentation
-> and project scaffolding only — no application code yet. See
-> [Roadmap](#roadmap) and [Getting Started](#getting-started).
+> **Status:** Bootstrapped. A bare React Native + TypeScript (strict) app boots
+> on iOS and Android with `react-native-vision-camera` installed and camera/
+> microphone permissions wired (task A1). The current screen only requests
+> camera permission and shows a live preview — recognition, storage, and
+> collection features are still to come. See [Roadmap](#roadmap) and
+> [Getting Started](#getting-started).
 
 ---
 
@@ -259,14 +262,62 @@ the repo free of copyrighted assets (see the IP guardrail in
 
 ## Getting Started
 
-> Placeholder — the app is not yet scaffolded, so there is nothing to run.
+This is a **bare** React Native app (not Expo-managed). You'll need a working
+React Native native toolchain for iOS and/or Android.
 
-Once scaffolding lands, this section will cover prerequisites (Node, package
-manager, iOS/Android toolchains), install steps, environment configuration (see
-[`.env.example`](.env.example)), and how to run the app on a simulator/device.
+### Prerequisites
 
-For now, please read the working agreement in [CLAUDE.md](CLAUDE.md) before
-contributing.
+- **Node 20 LTS** — the version is pinned in [`.nvmrc`](.nvmrc); with `nvm`, run
+  `nvm use` (or `nvm install`) in the repo root. `npm` ships with Node and is the
+  package manager for this project.
+- **Watchman** — `brew install watchman`.
+- **iOS:** Xcode **16.1+** with an iOS Simulator runtime, plus **Ruby + Bundler +
+  CocoaPods** (CocoaPods is managed via the project [`Gemfile`](Gemfile), so you
+  don't need a global install — see below).
+- **Android:** **JDK 17**, the Android SDK (Platform + Build-Tools 36, NDK
+  `27.1.12297006`), and an emulator (AVD) or a connected device. Set
+  `ANDROID_HOME` and add `platform-tools`/`emulator` to your `PATH`.
+
+See React Native's
+[environment setup](https://reactnative.dev/docs/set-up-your-environment)
+(choose **React Native CLI**, not Expo) for platform details.
+
+### Install
+
+```sh
+nvm use            # Node 20 (per .nvmrc)
+npm install        # JS dependencies
+
+# iOS native dependencies (CocoaPods, via Bundler)
+bundle install                       # once, installs CocoaPods pinned in Gemfile
+bundle exec pod install --project-directory=ios
+```
+
+### Run
+
+Start Metro in one terminal, then build/run the app in another:
+
+```sh
+npm start          # Metro bundler
+
+npm run ios        # build + launch on the iOS Simulator
+# or
+npm run android    # build + launch on an Android emulator/device
+```
+
+On first launch the app requests **camera permission**. Granting it shows a live
+back-camera preview (the iOS Simulator has no camera hardware, so it shows a
+"granted, no device" state — use an Android emulator's virtual camera or a real
+device to see the preview).
+
+### Environment configuration
+
+Required environment variables are documented in
+[`.env.example`](.env.example). Runtime env wiring (via `react-native-config`) is
+not yet implemented — it arrives in a later milestone (B2). No env vars are
+required to build and run A1.
+
+Before contributing, read the working agreement in [CLAUDE.md](CLAUDE.md).
 
 ---
 

@@ -12,10 +12,28 @@
 
 **As of 2026-06-16:**
 
-- Repo is **docs-only** — nothing scaffolded, installed, or built yet.
-- **This plan lives in PR #4** (`chore/mvp-plan` → `development`), pending
-  review/merge. No implementation tasks (A1+) have started.
-- **Next action:** Task A1 (`chore/scaffold-bare-rn`) — see §3 "Do this first".
+- **A1 scaffold is complete but NOT fully verified** (`chore/scaffold-bare-rn`,
+  PR #6 → `development`): bare **React Native 0.86.0** + TypeScript (strict)
+  scaffolded, New Architecture ON, `react-native-vision-camera` **v4.7.3**
+  installed with camera/microphone permissions wired (iOS `Info.plist` + Android
+  manifest), a minimal camera-permission "hello" screen at `src/app/App.tsx`, the
+  `src/` placeholder tree, and a real README "Getting Started". `npx tsc --noEmit`
+  is clean and iOS `pod install` succeeds (77 pods, vision-camera links with frame
+  processors disabled). Bundle id `com.verykenny.inkcapture`.
+  - vision-camera was pinned to **v4** (not the newer v5, which mandates the
+    `react-native-nitro-modules`/`react-native-nitro-image` native deps — a
+    heavier, ask-first footprint). Frame-processor/worklets deps are deferred to
+    **D1**.
+  - ⚠️ **Still pending — re-run both builds to close the A1 acceptance gate:** the
+    iOS `xcodebuild` and Android Gradle builds were interrupted mid-compile, so the
+    app has **not yet been confirmed to boot** on an iOS simulator or Android
+    emulator, and the camera-permission prompt has not been observed end-to-end.
+    Run `npm run ios` and `npm run android`, confirm the app launches and the
+    permission prompt appears, before treating A1 as truly done / before merging
+    PR #6.
+- **Next action:** finish A1 verification (re-run the two builds, above), then
+  Task **A2** (`chore/dev-tooling-ci`) — ESLint/Prettier hardening, Jest + RTL,
+  npm scripts, and the CI gate. See §3 / the A2 task.
 
 **Settled decisions (don't re-litigate):**
 
@@ -126,11 +144,16 @@ lint+format+typecheck pass + tests for non-trivial logic + docs updated). Only
 - **Scope (in):** ESLint + Prettier (RN/TS configs), Jest + React Native Testing
   Library, `lint-staged` + pre-commit hook, npm scripts (`lint`,
   `format:check`, `typecheck`, `test`), GitHub Actions running all four + a build
-  check on PRs into `development`.
+  check on PRs into `development`. **Also:** a `Brewfile` (watchman, nvm,
+  zulu@17) and a `scripts/setup.sh` that chains `nvm install`, `npm install`,
+  `bundle install`, and `bundle exec pod install` so a fresh-machine clone is one
+  command after Xcode + Android Studio are installed. Add `npx react-native
+  doctor` to the README troubleshooting notes.
 - **Out:** Feature tests (none exist yet) beyond a smoke test.
 - **Depends on:** A1.
 - **Acceptance:** CI green on the PR; a deliberately bad lint/format/type error
-  fails locally. Makes the DoD enforceable for everything after it.
+  fails locally. `bash scripts/setup.sh` on a clean checkout completes without
+  errors. Makes the DoD enforceable for everything after it.
 - **Size:** **M.** No open decision.
 
 #### A3. Architecture skeleton & service interfaces — `chore/architecture-skeleton`
