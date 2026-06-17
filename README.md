@@ -276,10 +276,24 @@ React Native native toolchain for iOS and/or Android.
 - **Watchman** — `brew install watchman`.
 - **iOS:** Xcode **16.1+** with an iOS Simulator runtime, plus **Ruby + Bundler +
   CocoaPods** (CocoaPods is managed via the project [`Gemfile`](Gemfile), so you
-  don't need a global install — see below).
+  don't need a global install — see below). If you installed Xcode from the App
+  Store and `xcodebuild`/CocoaPods aren't found, see
+  [Troubleshooting](#troubleshooting) (the `xcode-select` pointer).
 - **Android:** **JDK 17**, the Android SDK (Platform + Build-Tools 36, NDK
   `27.1.12297006`), and an emulator (AVD) or a connected device. Set
   `ANDROID_HOME` and add `platform-tools`/`emulator` to your `PATH`.
+
+On macOS the SDK that Android Studio installs lives at `~/Library/Android/sdk`.
+Add this to your shell profile (`~/.zshrc`), then open a new terminal:
+
+```sh
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+```
+
+Verify with `adb --version`. List installed emulators with `emulator -list-avds`
+and boot one with `emulator -avd <name>` (the `npm run android` build will also
+start a connected emulator/device).
 
 See React Native's
 [environment setup](https://reactnative.dev/docs/set-up-your-environment)
@@ -334,6 +348,48 @@ doctor — it checks Node, watchman, the iOS/Android toolchains, and more:
 ```sh
 npx react-native doctor
 ```
+
+**`xcodebuild`/CocoaPods not found after installing Xcode from the App Store.**
+The App Store installs Xcode but leaves the command-line tools pointed at the
+standalone Command Line Tools, so `xcodebuild` errors and `react-native doctor`
+reports Xcode as "not found". Point the toolchain at Xcode, then accept the
+license and install its components:
+
+```sh
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -license accept
+sudo xcodebuild -runFirstLaunch
+```
+
+**Bundler crashes with `undefined method 'untaint'` (or similar) during
+`bundle install`.** `Gemfile.lock` is pinned to **Bundler 1.17.2**, which only
+runs on **Ruby < 3.2**. macOS ships a compatible system Ruby (2.6.x), so the
+default works — but if a newer Ruby (3.2+, e.g. from Homebrew or rbenv) is first
+on your `PATH`, Bundler 1.17.2 fails to load. Use the system Ruby explicitly:
+
+```sh
+BUNDLE_PATH=vendor/bundle /usr/bin/bundle install
+BUNDLE_PATH=vendor/bundle /usr/bin/bundle exec pod install --project-directory=ios
+```
+
+`BUNDLE_PATH=vendor/bundle` (already set by `scripts/setup.sh`) installs gems
+into the gitignored project-local `vendor/bundle`, so **no `sudo` is needed**
+against the system Ruby.
+
+**"Unable to boot device in current state: Booted."** Harmless — the simulator
+was already running, so the boot request was a no-op. Dismiss it; the build
+continues.
+
+**CocoaPods warns "your terminal must use UTF-8 encoding."** Set a UTF-8 locale
+(add it to your shell profile to make it permanent):
+
+```sh
+export LANG=en_US.UTF-8
+```
+
+**App shows a red "Could not connect to development server" screen.** Metro
+isn't running. Start it with `npm start` (in its own terminal), then reload the
+app (`r` in the Metro terminal, or shake → Reload).
 
 ### Environment configuration
 
