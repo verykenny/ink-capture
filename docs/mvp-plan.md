@@ -20,15 +20,16 @@
   script on a fresh `npm install`; a GitHub Actions workflow gates PRs into
   `development` on the four checks plus a JS bundle check; and a `Brewfile` +
   `scripts/setup.sh` give a one-command machine bootstrap. Native iOS/Android CI
-  build verification is **deferred** (tied to closing the A1 boot gate below) —
-  the bundle check proves only that the JS module graph resolves.
+  build verification is **deferred but now unblocked** (the A1 boot gate was
+  closed 2026-06-17, below) — the bundle check proves only that the JS module
+  graph resolves.
   - Two hardening fixes made in passing: `@react-native/jest-preset` was
     referenced by `jest.config.js` but missing from `package.json` (it is only
     an _optional_ peer dep of `react-native`, so `npm ci` never installed it) —
     added as a dev dependency; and `npm run lint` now uses `--max-warnings=0`
     because the `@react-native` config emits issues as warnings, so a bare
     `eslint .` exited 0 and never blocked bad code.
-- **A1 scaffold is complete but NOT fully verified** (`chore/scaffold-bare-rn`,
+- **A1 scaffold is complete and verified** (`chore/scaffold-bare-rn`,
   PR #6 → `development`): bare **React Native 0.86.0** + TypeScript (strict)
   scaffolded, New Architecture ON, `react-native-vision-camera` **v4.7.3**
   installed with camera/microphone permissions wired (iOS `Info.plist` + Android
@@ -40,17 +41,18 @@
     `react-native-nitro-modules`/`react-native-nitro-image` native deps — a
     heavier, ask-first footprint). Frame-processor/worklets deps are deferred to
     **D1**.
-  - ⚠️ **Still pending — re-run both builds to close the A1 acceptance gate:** the
-    iOS `xcodebuild` and Android Gradle builds were interrupted mid-compile, so the
-    app has **not yet been confirmed to boot** on an iOS simulator or Android
-    emulator, and the camera-permission prompt has not been observed end-to-end.
-    Run `npm run ios` and `npm run android`, confirm the app launches and the
-    permission prompt appears, before treating A1 as truly done / before merging
-    PR #6.
-- **Next action:** finish A1 verification (re-run the two builds, above — still
-  open; it also gates adding native build verification to CI), then Task **A3**
-  (`chore/architecture-skeleton`) — TS path aliases and the interface-only
-  service boundaries (`CardRecognizer`, `CatalogService`, `PersistenceService`).
+  - ✅ **Verified 2026-06-17 — A1 acceptance gate closed.** The app builds and
+    boots on the **iOS Simulator** (iPhone 17 / iPhone 17 Pro, iOS 26.5) and the
+    **Android emulator** (Pixel_9, API 35), and the **camera-permission prompt was
+    observed end-to-end** on both. PR #6 is merged; A1 is done. (Verification was
+    done on a fresh M5 clone — the setup gotchas surfaced are now in the README
+    troubleshooting notes; see also the unrelated `ios/Podfile.lock` prebuilt-hash
+    follow-up flagged during that work.)
+- **Next action:** Task **A3** (`chore/architecture-skeleton`) — TS path aliases
+  and the interface-only service boundaries (`CardRecognizer`, `CatalogService`,
+  `PersistenceService`). See §2 / the A3 task. With the A1 boot gate now closed,
+  adding native iOS/Android build verification to CI is also unblocked (optional
+  follow-up).
   See §2 / the A3 task.
 
 **Settled decisions (don't re-litigate):**
@@ -156,7 +158,7 @@ _task-specific_ acceptance criteria are called out below.
 - **Depends on:** nothing (root).
 - **Acceptance:** App boots on iOS simulator and Android emulator; camera
   permission prompt appears; `tsc --noEmit` clean. README "Getting Started"
-  filled in with real run steps.
+  filled in with real run steps. — ✅ **Met (verified 2026-06-17).**
 - **Size:** **L.** No open decision, but the riskiest setup — do it carefully.
 
 #### A2. Dev tooling + CI gate — `chore/dev-tooling-ci`
