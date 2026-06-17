@@ -146,6 +146,21 @@ swappable:
 Dependencies point inward: UI → State → Domain, with the Domain layer depending
 only on service interfaces, not concrete implementations.
 
+### Code structure & service interfaces
+
+The layered design above is wired up behind **path aliases** (`@domain`,
+`@services`, `@state`, `@ui`, `@lib`) and **interface-only service ports** —
+`CardRecognizer`, `CatalogService`, and `CollectionRepository` /
+`PersistenceService` (plus the shared `RecognitionResult`). Concrete
+implementations are injected at the composition root and land in later
+milestones behind these ports. See
+[docs/architecture.md](docs/architecture.md) for the layer map, dependency
+direction, the alias table, and pointers to each interface file.
+
+> The draft [data model](#draft-data-model) below is **settled in B1** (the
+> `finish = normal | foil` decision and the condition grades); the architecture
+> skeleton ships only forward-declared placeholders for those types.
+
 ---
 
 ## Proposed directory structure
