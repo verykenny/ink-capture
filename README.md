@@ -1,1 +1,250 @@
-# ink-capture
+# Lorcana Card Recognition & Tracker
+
+> Working title: **ink-capture**
+
+A cross-platform mobile app that scans physical Disney Lorcana cards with your
+phone camera, identifies them, and tracks your personal collection. Point the
+camera at a card, let the app recognize it, and add it to a local collection
+with quantity, finish, and condition. The goal is a fast, offline-friendly way
+for players and collectors to catalog what they own without manually typing in
+every card.
+
+> **Status:** Early bootstrap. This repository currently contains documentation
+> and project scaffolding only — no application code yet. See
+> [Roadmap](#roadmap) and [Getting Started](#getting-started).
+
+---
+
+## MVP
+
+The minimum viable product is a single, tight loop:
+
+1. **Scan** a card using the device camera.
+2. **Identify** the card (which set, which card, collector number).
+3. **Add** it to a **local collection**, recording:
+   - **Quantity** owned
+   - **Finish** (e.g. normal vs. foil/enchanted/special finish)
+   - **Condition** (e.g. NM / LP / MP / HP / DMG)
+
+Everything in the MVP works against on-device storage. Account sync, sharing,
+deck building, and pricing are explicitly out of scope for the MVP.
+
+---
+
+## Proposed tech stack
+
+> **Proposed — pending confirmation.** Nothing below is installed or committed
+> yet. These are recommendations to be confirmed before any code is written.
+
+- **App framework:** React Native + TypeScript (strict mode)
+- **Camera capture:** [`react-native-vision-camera`](https://github.com/mrousavy/react-native-vision-camera)
+- **Local storage:** SQLite via
+  [`op-sqlite`](https://github.com/OP-Engineering/op-sqlite) or
+  [`react-native-quick-sqlite`](https://github.com/margelo/react-native-quick-sqlite)
+- **State management:** TBD (lightweight store such as Zustand, or React
+  context + reducers) — to be decided during scaffolding.
+
+---
+
+## Recognition approach
+
+Card recognition is the riskiest part of the project, so it is designed as a
+**pluggable interface with swappable backends**. The app depends on a single
+`CardRecognizer` abstraction; concrete implementations can be developed,
+compared, and swapped without touching the rest of the app.
+
+```
+interface CardRecognizer {
+  recognize(image): Promise<RecognitionResult>  // candidate cards + confidence
+}
+```
+
+Candidate backends:
+
+- **(a) Cloud vision API** — send the captured image to a hosted vision service
+  (e.g. **Scrydex Vision**) and receive a card match. Highest accuracy with
+  least on-device work; requires network and likely an API key/cost.
+- **(b) On-device OCR + fuzzy lookup** — OCR the **collector number** and **card
+  name** from the captured frame, then fuzzy-match against a cached card
+  catalog. Works offline once the catalog is cached; accuracy depends on OCR
+  quality and lighting.
+- **(c) On-device image / feature matching** — match the captured card against
+  reference card images using image hashing or feature descriptors. Fully
+  offline; heavier to build and tune.
+
+**Recommendation:** start with **one** backend behind the `CardRecognizer`
+interface (most likely **(a)** for fastest path to a working demo, or **(b)** if
+we prioritize offline-first), and keep the others as future implementations. Do
+not hard-commit to a single approach yet — this is an
+[ask-first decision](CLAUDE.md).
+
+---
+
+## Card data source
+
+The app needs Lorcana **card metadata** (set, name, collector number, finishes,
+etc.) to resolve a scan into a known card. Candidate community catalogs:
+
+- **[LorcanaJSON](https://lorcanajson.org/)**
+- **[Lorcast](https://lorcast.com/)** (API)
+- **[lorcana-api.com](https://lorcana-api.com/)**
+
+Card data is **fetched and cached at runtime**, not bundled into this repo (see
+[Legal / IP](#legal--ip)). Final choice of catalog is pending confirmation.
+
+---
+
+## High-level architecture
+
+A layered architecture keeps the recognition and data concerns isolated and
+swappable:
+
+- **UI layer** — screens and components (camera/scan screen, collection list,
+  card detail, add/edit entry).
+- **State layer** — app state and view models; orchestrates user actions and
+  holds in-memory state.
+- **Domain layer** — core types and business rules (Card, CollectionEntry,
+  Deck; matching/merge rules) with no framework or I/O dependencies.
+- **Services layer** — the swappable boundaries to the outside world:
+  - **Vision service** — implements the `CardRecognizer` interface.
+  - **Catalog service** — fetches and caches Lorcana card metadata.
+  - **Persistence service** — local SQLite storage for the collection.
+
+Dependencies point inward: UI → State → Domain, with the Domain layer depending
+only on service interfaces, not concrete implementations.
+
+---
+
+## Proposed directory structure
+
+> Proposed — created during scaffolding, not yet present.
+
+```
+ink-capture/
+├── README.md
+├── CLAUDE.md
+├── .gitignore
+├── .env.example
+└── src/
+    ├── app/                # navigation, app entry, screens wiring
+    ├── ui/                 # screens & reusable components
+    │   ├── scan/
+    │   ├── collection/
+    │   └── components/
+    ├── state/              # stores / view models
+    ├── domain/             # core types & business rules (framework-free)
+    │   ├── models/         # Card, CollectionEntry, Deck
+    │   └── matching/       # recognition matching / merge logic
+    ├── services/
+    │   ├── vision/         # CardRecognizer interface + backends
+    │   ├── catalog/        # Lorcana catalog fetch + cache
+    │   └── persistence/    # SQLite storage
+    └── lib/                # shared utilities
+```
+
+---
+
+## Draft data model
+
+> **Draft.** Field names and types are subject to change during scaffolding.
+
+### Card (catalog entry)
+
+A card as defined by the upstream catalog. Read-only reference data.
+
+| Field               | Type     | Notes                                            |
+| ------------------- | -------- | ------------------------------------------------ |
+| `id`                | string   | Stable catalog identifier                        |
+| `name`              | string   | Card name                                        |
+| `version`           | string?  | Subtitle / version (e.g. "Brave Little Tailor")  |
+| `setCode`           | string   | Set identifier                                   |
+| `collectorNumber`   | string   | Number within the set                            |
+| `rarity`            | string   | e.g. Common … Legendary / Enchanted              |
+| `availableFinishes` | string[] | Finishes the card can exist in                   |
+| `imageUrl`          | string?  | Remote image URL (fetched at runtime, not stored)|
+
+### CollectionEntry (an owned copy)
+
+A user-owned record pointing at a `Card`.
+
+| Field        | Type     | Notes                                              |
+| ------------ | -------- | -------------------------------------------------- |
+| `id`         | string   | Local identifier                                   |
+| `cardId`     | string   | References `Card.id`                                |
+| `quantity`   | integer  | Number owned of this card+finish+condition combo   |
+| `finish`     | enum     | e.g. `normal` \| `foil` \| `enchanted` \| `special`|
+| `condition`  | enum     | e.g. `NM` \| `LP` \| `MP` \| `HP` \| `DMG`         |
+| `notes`      | string?  | Free-form user notes                               |
+| `addedAt`    | datetime | When the entry was created                         |
+| `updatedAt`  | datetime | Last modified                                      |
+
+### Deck (optional — stretch)
+
+A named list of cards for play/brewing.
+
+| Field       | Type     | Notes                            |
+| ----------- | -------- | -------------------------------- |
+| `id`        | string   | Local identifier                 |
+| `name`      | string   | Deck name                        |
+| `cards`     | array    | `{ cardId, quantity }` entries   |
+| `createdAt` | datetime |                                  |
+| `updatedAt` | datetime |                                  |
+
+---
+
+## Roadmap
+
+**MVP**
+- Camera scan → recognize → add to local collection (quantity, finish,
+  condition).
+- One recognition backend behind the `CardRecognizer` interface.
+- Local SQLite persistence; runtime-cached card catalog.
+- Browse/search the local collection.
+
+**v1**
+- Edit/remove entries; manual add/correction when recognition is uncertain.
+- Collection stats (counts by set, completion %).
+- Improved scanning UX (multi-frame capture, confidence display).
+- Hardening: error states, offline behavior, basic tests.
+
+**Stretch goals**
+- Deck building.
+- A second recognition backend + on-device/offline recognition.
+- Pricing data, export/import, and optional cloud sync/sharing.
+
+---
+
+## Legal / IP
+
+Disney Lorcana is © Ravensburger / Disney. **This is an unofficial fan project**
+and is not affiliated with, endorsed, or sponsored by Ravensburger or Disney.
+
+Card **art and bulk card data are not redistributed in this repository**. All
+card images and metadata are fetched and cached **at runtime** from third-party
+sources under those sources' respective usage policies. Contributors must keep
+the repo free of copyrighted assets (see the IP guardrail in
+[CLAUDE.md](CLAUDE.md)).
+
+---
+
+## Getting Started
+
+> Placeholder — the app is not yet scaffolded, so there is nothing to run.
+
+Once scaffolding lands, this section will cover prerequisites (Node, package
+manager, iOS/Android toolchains), install steps, environment configuration (see
+[`.env.example`](.env.example)), and how to run the app on a simulator/device.
+
+For now, please read the working agreement in [CLAUDE.md](CLAUDE.md) before
+contributing.
+
+---
+
+## Contributing
+
+> Placeholder.
+
+This project uses a development-branch workflow with pull requests and
+Conventional Commits. **Before contributing, read [CLAUDE.md](CLAUDE.md)** — it
+defines the git workflow, code-quality bar, secrets handling, and IP guardrails
+that all contributors (human and AI) must follow.
