@@ -82,18 +82,51 @@ only through a separate, deliberate, human-approved merge.
 
 - **TypeScript strict mode** is required (`strict: true`); no implicit `any`.
 - **ESLint + Prettier** must pass; formatting is not hand-maintained.
-- **Tests for non-trivial logic** — especially recognition matching and
-  data mapping (catalog → domain models). Pure domain logic should be unit
-  tested.
+
+### Test-driven development (TDD) — the default workflow
+
+**This is a test-driven project.** For any non-trivial logic, write the test
+**first**, watch it fail, then write the minimum code to make it pass, then
+refactor — the classic **red → green → refactor** loop. Tests are written
+alongside the code in the same PR, never deferred to a follow-up.
+
+- **Always TDD (write the test first):** pure domain logic and business rules
+  (e.g. collection-entry identity/merge), recognition **matching** logic, data
+  **mapping** (catalog → domain models), repository/persistence logic, and state
+  reducers/stores. These are framework-free or easily isolated and have clear
+  inputs/outputs — there is no excuse to write them test-last.
+- **Test, but test-first is impractical:** UI components and screens — cover them
+  with render/interaction tests (React Native Testing Library) for meaningful
+  behavior, even if the test is written close to the code rather than strictly
+  before it.
+- **Pragmatic exception (still verify):** pure **scaffolding, native
+  configuration, and build wiring** (e.g. the A1 bare-RN scaffold, `Info.plist` /
+  `AndroidManifest` permissions, Pods/Gradle setup) are not unit-TDD-able. These
+  are verified by the app **building and running** and by manual acceptance steps
+  documented in the PR. Where a cheap smoke test is possible (e.g. an `App`
+  render test), add one once the test harness exists.
+- **Bug fixes:** reproduce the bug with a **failing test first**, then fix it, so
+  the test proves the fix and guards against regression.
+- **Keep tests fast and deterministic.** Prefer pure unit tests; isolate I/O
+  (network, SQLite, camera) behind the service interfaces so logic is tested
+  without a device. No network or live catalog/bulk data in tests — use the tiny
+  committed fixtures only.
+
+> Test tooling (Jest + React Native Testing Library) is established in task **A2**.
+> Until it lands, logic-heavy PRs should not merge ahead of it; sequence work so
+> testable logic arrives with a harness to test it.
 
 ### Definition of done
 A change is "done" when:
 1. It builds and the app runs (once the app exists).
 2. Lint, format, and type checks pass.
-3. New/changed non-trivial logic has tests, and the test suite passes.
+3. New/changed logic was built **test-first** (red → green → refactor) where
+   applicable, has tests, and the full test suite passes. Non-TDD-able
+   scaffolding/config is verified by build + documented manual acceptance.
 4. README/CLAUDE/docs are updated if behavior, stack, or workflow changed.
 5. No secrets, copyrighted assets, or bulk card data are committed.
-6. The PR describes what/why/how-tested and targets `development`.
+6. The PR describes what/why/how-tested and targets `development`. The
+   **how-tested** section names the tests added and the red→green evidence.
 
 ---
 
