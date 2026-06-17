@@ -5,6 +5,45 @@
 > decisions in [README.md](../README.md) and the hard rules in
 > [CLAUDE.md](../CLAUDE.md); this document does not re-litigate them.
 
+## 0. Status & carry-over (read this first)
+
+> Keep this section current as work lands — it's the handoff state for the next
+> contributor (human or agent).
+
+**As of 2026-06-16:**
+
+- Repo is **docs-only** — nothing scaffolded, installed, or built yet.
+- **This plan lives in PR #4** (`chore/mvp-plan` → `development`), pending
+  review/merge. No implementation tasks (A1+) have started.
+- **Next action:** Task A1 (`chore/scaffold-bare-rn`) — see §3 "Do this first".
+
+**Settled decisions (don't re-litigate):**
+
+- **Card finish model** (human-approved 2026-06-16): `finish = normal | foil`;
+  enchanted and special/promo printings are distinct `Card` rows. Apply in B1.
+
+**Recommendations not yet ratified** — each gets confirmed at its forcing PR, so
+treat as the default unless a human overrides:
+
+- SQLite → **op-sqlite** (forced at B3).
+- State management → **Zustand** (forced at C2).
+- OCR engine → **ML Kit Text Recognition** (forced at D1).
+
+**Carry-over actions for later PRs (easy to forget):**
+
+- **B1:** `README.md`'s draft data model is **currently stale** — it still shows
+  `finish = normal | foil | enchanted | special` and lists `enchanted` under both
+  `finish` and `rarity`. Reconcile it to the settled model (above) alongside the
+  code in the B1 PR.
+- **B2:** Add `react-native-config` (or similar) so bare RN can read
+  `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
+  CLAUDE.md before adding.
+- **D1:** The ML Kit vision-camera frame-processor plugin is a heavy **native
+  dep → ask-first** before adding.
+- **Secrets:** MVP backend needs no API key; the commented `RECOGNITION_API_KEY`
+  lines in `.env.example` are correctly forward-looking — leave as-is, and don't
+  wire a paid backend without the ask-first step.
+
 ## 1. Architectural assessment
 
 The documented architecture is solid and this plan builds on it, not redrawing
