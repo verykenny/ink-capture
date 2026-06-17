@@ -1,0 +1,123 @@
+# CLAUDE.md — Working agreement for AI agents (and humans)
+
+This file defines the rules of engagement for working in this repository. It
+applies to AI coding agents **and** human contributors. If anything here
+conflicts with a request, **follow this file and ask a human** before deviating.
+
+Keep this document in sync with [README.md](README.md). If the stack or workflow
+changes, update both.
+
+---
+
+## Project summary
+
+**Lorcana Card Recognition & Tracker** (working title: *ink-capture*) is a
+cross-platform mobile app that scans physical Disney Lorcana cards with the
+phone camera, identifies them, and tracks the user's collection (quantity,
+finish, condition). See [README.md](README.md) for full scope, architecture, and
+the draft data model.
+
+### Current proposed stack (pending confirmation)
+
+> Not yet installed or scaffolded. Confirm with a human before introducing code.
+
+- React Native + TypeScript (strict mode)
+- `react-native-vision-camera` for capture
+- SQLite via `op-sqlite` or `react-native-quick-sqlite` for local storage
+- Recognition behind a pluggable `CardRecognizer` interface (candidate backends:
+  cloud vision API e.g. Scrydex Vision, on-device OCR + fuzzy lookup, on-device
+  image/feature matching)
+- Card metadata from a community catalog (LorcanaJSON / Lorcast /
+  lorcana-api.com), fetched and cached at runtime
+
+---
+
+## Git workflow (HARD RULES)
+
+These are non-negotiable.
+
+- **NEVER commit or push directly to `main`.** Agents must never target `main`
+  for commits, pushes, or PRs. `main` is **stable/release only** and is updated
+  **only** by occasional, **human-approved** merges from `development`.
+- **`development` is the integration branch.** All work converges here first.
+- **No direct commits to `development` either.** Every change reaches
+  `development` via a **Pull Request** targeting `development`.
+- **All work happens on short-lived branches off `development`:**
+  - `feature/<short-desc>` — new features
+  - `bugfix/<short-desc>` — fixes
+  - `chore/<short-desc>` — tooling, docs, config
+- **Conventional Commits** for all commit messages:
+  `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:` (optionally scoped,
+  e.g. `feat(scan): ...`).
+
+### Before starting work
+1. Branch from the **latest** `development` (pull/fetch first).
+2. Keep PRs **small and focused** — one concern per branch.
+3. **Rebase/update from `development`** before opening the PR so it merges
+   cleanly.
+
+### Pull request requirements
+Every PR description must state:
+- **What** changed.
+- **Why** it changed.
+- **How** it was tested.
+
+PRs target `development`. They are merged after review; `main` receives changes
+only through a separate, deliberate, human-approved merge.
+
+---
+
+## Code quality
+
+- **TypeScript strict mode** is required (`strict: true`); no implicit `any`.
+- **ESLint + Prettier** must pass; formatting is not hand-maintained.
+- **Tests for non-trivial logic** — especially recognition matching and
+  data mapping (catalog → domain models). Pure domain logic should be unit
+  tested.
+
+### Definition of done
+A change is "done" when:
+1. It builds and the app runs (once the app exists).
+2. Lint, format, and type checks pass.
+3. New/changed non-trivial logic has tests, and the test suite passes.
+4. README/CLAUDE/docs are updated if behavior, stack, or workflow changed.
+5. No secrets, copyrighted assets, or bulk card data are committed.
+6. The PR describes what/why/how-tested and targets `development`.
+
+---
+
+## Secrets
+
+- **Never commit API keys, tokens, or `.env` files.** `.env` is git-ignored.
+- Use **`.env.example`** to document required environment variables (with
+  placeholder, non-secret values).
+- When introducing a new required env var, add it to `.env.example` **and**
+  document its purpose in the same PR.
+
+---
+
+## IP / assets guardrail
+
+This is an **unofficial fan project**. Disney Lorcana is © Ravensburger /
+Disney.
+
+- **Do NOT download, bundle, or commit** Lorcana card **images** or **bulk card
+  data** into this repository.
+- Card data and images are **fetched and cached at runtime only**, from the
+  upstream catalog/vision sources under their respective usage policies.
+- Keep the repository **free of copyrighted assets**. If you find any committed,
+  flag it and remove it.
+
+---
+
+## Ask-first rules
+
+Confirm with a human **before**:
+- Adding any **new paid service** or anything that incurs cost.
+- **Changing the chosen recognition backend** (or committing to one for the
+  first time).
+- Adding **heavy native dependencies** (new native modules / build complexity).
+- Anything that would **alter the public API surface** of the app or its
+  modules.
+
+When in doubt, open an issue or ask — do not assume.
