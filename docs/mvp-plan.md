@@ -94,6 +94,13 @@ treat as the default unless a human overrides:
   `finish = normal | foil | enchanted | special` and lists `enchanted` under both
   `finish` and `rarity`. Reconcile it to the settled model (above) alongside the
   code in the B1 PR.
+- **B1 (from A3 review):** A3 left two placeholders B1 must close. (1) `Finish`
+  and `Condition` are currently aliased to `string` in
+  `src/domain/models/attributes.ts` — a type-safety hole (the persistence
+  contract accepts any string) until B1 narrows them to `'normal' | 'foil'` and
+  the settled condition grades. (2) `CollectionEntry.addedAt`/`updatedAt` are
+  `string` ISO with an in-file "B1 may switch to `Date`" note — B1 must settle
+  the timestamp representation since `CollectionRepository` references it.
 - **B2:** Add `react-native-config` (or similar) so bare RN can read
   `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
   CLAUDE.md before adding.
