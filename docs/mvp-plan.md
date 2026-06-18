@@ -70,8 +70,8 @@
   - **Optional follow-up (still open, non-gating):** native iOS/Android build
     verification in CI — unblocked by the closed A1 boot gate; A3's PR shipped
     without it, so do it as a fast-follow `chore/`.
-- **B1 domain models + rules is implemented** (`feature/domain-models`, PR #17 →
-  `development`, opened 2026-06-17 — pending review/merge): the A3 placeholders
+- **B1 domain models + rules is complete** (`feature/domain-models`, PR #17 →
+  `development`, merged 2026-06-17): the A3 placeholders
   are narrowed to the settled model and the collection-entry identity/merge rule
   and validation are encoded, all **pure and framework-free** (no `react-native*`
   imports; the suite runs with no device). `Finish`/`Condition` are now
@@ -88,6 +88,11 @@
   `assertValidNewCollectionEntry` validate the untrusted loose shape. The README
   data model is reconciled in the same PR. Full local gate green (6 suites / 59
   tests; TDD red→green for the value-set, merge, and validation chunks).
+  - **Deliberate B1 deferrals (tracked, not debt):** (1) the branded
+    `IsoTimestamp` type for `addedAt`/`updatedAt` (plain ISO `string` for now);
+    (2) the cross-field invariant `finish ∈ Card.availableFinishes`, which needs
+    a Card↔Entry join and lands at the B2/B3/C2 seam — `validateNewCollectionEntry`
+    deliberately does not enforce it. Neither blocks B3.
   - **B3 hand-off (don't forget):** the merge rule assumes at most one stack per
     `(cardId, finish, condition)` and throws otherwise — B3 must enforce a
     `UNIQUE` index on those columns so that path is impossible.
@@ -105,7 +110,7 @@
 
 - **Card finish model** (human-approved 2026-06-16): `finish = normal | foil`;
   enchanted and special/promo printings are distinct `Card` rows. **Applied in
-  B1 (PR #17).**
+  B1 (PR #17, merged 2026-06-17).**
 
 **Recommendations not yet ratified** — each gets confirmed at its forcing PR, so
 treat as the default unless a human overrides:
