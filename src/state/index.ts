@@ -9,3 +9,4 @@
  */
 
 export * from './collectionStore';
+export * from './appServices';
