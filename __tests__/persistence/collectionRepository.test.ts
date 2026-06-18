@@ -1,9 +1,11 @@
 /**
- * SqliteCollectionRepository — CRUD round-trips against real in-memory SQLite.
+ * SqliteCollectionRepository — CRUD + merge-on-insert against real in-memory
+ * SQLite (node:sqlite via the SqliteDatabase seam).
  *
- * Rows are seeded via raw adapter SQL so getById/list/update/remove are tested
- * independently of add() (whose merge logic lands in the next commit). A fixed
- * clock makes updated_at deterministic.
+ * getById/list/update/remove are exercised against rows seeded with raw adapter
+ * SQL (independent of add()); add()'s create/increment merge is then driven
+ * through resolveAddition end-to-end. A fixed (or stepping) clock makes the
+ * timestamps deterministic.
  *
  * @format
  */
@@ -13,8 +15,15 @@ import { runMigrations } from '@services/persistence/migrations';
 import type { SqlParam } from '@services/persistence/sqlite/SqliteDatabase';
 import type { CollectionRepository } from '@services';
 import { TestSqliteDatabase } from './testDatabase';
+import { newEntry } from '../fixtures/cards';
 
 const FIXED_NOW = '2026-06-17T12:00:00.000Z';
+
+/** A clock that returns each timestamp in turn, then sticks on the last. */
+const stepClock = (...times: string[]): (() => string) => {
+  let index = 0;
+  return () => times[Math.min(index++, times.length - 1)];
+};
 
 /** Insert a row directly (bypassing add) and return its domain id. */
 const seed = async (
@@ -160,16 +169,79 @@ describe('SqliteCollectionRepository', () => {
     });
   });
 
-  describe('add (stubbed until the merge-on-insert commit)', () => {
-    test('throws an announced not-yet-implemented error', async () => {
+  describe('add (merge-on-insert)', () => {
+    test('create: first add inserts a new stack with an id + equal timestamps', async () => {
+      const r = createCollectionRepository(db, { now: () => FIXED_NOW });
+
+      const created = await r.add(newEntry({ quantity: 2, notes: 'first' }));
+
+      expect(created.id).toBeTruthy();
+      expect(created.quantity).toBe(2);
+      expect(created.notes).toBe('first');
+      expect(created.addedAt).toBe(FIXED_NOW);
+      expect(created.updatedAt).toBe(FIXED_NOW);
+      // round-trips through the DB exactly as returned
+      expect(await r.getById(created.id)).toEqual(created);
+    });
+
+    test('create: omitted notes persist as no notes', async () => {
+      const r = createCollectionRepository(db, { now: () => FIXED_NOW });
+      const created = await r.add(newEntry());
+      expect(created.notes).toBeUndefined();
+    });
+
+    test('increment: a second add of the same identity sums quantity, bumps updatedAt, and preserves addedAt + the original notes', async () => {
+      const r = createCollectionRepository(db, { now: stepClock('T1', 'T2') });
+
+      const created = await r.add(newEntry({ quantity: 2, notes: 'original' }));
+      const incremented = await r.add(
+        newEntry({ quantity: 3, notes: 'dropped on increment' }),
+      );
+
+      expect(incremented.id).toBe(created.id); // same stack, not a new row
+      expect(incremented.quantity).toBe(5); // 2 + 3
+      expect(incremented.notes).toBe('original'); // incoming notes dropped (B1)
+      expect(incremented.addedAt).toBe('T1'); // preserved
+      expect(incremented.updatedAt).toBe('T2'); // bumped
+      expect(await r.list()).toHaveLength(1);
+    });
+
+    test('duplicate identity is structurally impossible: repeated adds always increment one row', async () => {
+      const r = createCollectionRepository(db, { now: () => FIXED_NOW });
+
+      await r.add(newEntry({ quantity: 1 }));
+      await r.add(newEntry({ quantity: 1 }));
+      await r.add(newEntry({ quantity: 1 }));
+
+      const rows = await r.list();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].quantity).toBe(3);
+    });
+
+    test('distinct identities create separate stacks', async () => {
+      const r = createCollectionRepository(db, { now: () => FIXED_NOW });
+
+      await r.add(newEntry({ finish: 'normal', condition: 'NM' }));
+      await r.add(newEntry({ finish: 'foil', condition: 'NM' })); // different finish
+      await r.add(newEntry({ finish: 'normal', condition: 'LP' })); // different condition
+      await r.add(newEntry({ cardId: 'OTHER' })); // different card
+
+      expect(await r.list()).toHaveLength(4);
+    });
+
+    test('a constraint violation inside add() rolls the whole transaction back', async () => {
+      const r = createCollectionRepository(db, { now: () => FIXED_NOW });
+
+      // quantity 0 is type-valid but fails the CHECK; the insert must not persist.
       await expect(
-        repo.add({
-          cardId: 'TFC-042',
-          quantity: 1,
+        r.add({
+          cardId: 'BAD',
+          quantity: 0,
           finish: 'normal',
           condition: 'NM',
         }),
-      ).rejects.toThrow(/next commit/i);
+      ).rejects.toThrow();
+      expect(await r.list()).toHaveLength(0);
     });
   });
 });
