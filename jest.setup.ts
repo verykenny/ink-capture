@@ -24,6 +24,15 @@ jest.mock('@op-engineering/op-sqlite', () => ({
   })),
 }));
 
+// react-native-safe-area-context's real SafeAreaProvider withholds its children
+// until an onLayout delivers frame metrics — an event that never fires in Jest,
+// so a full <App /> render would mount the provider with no descendants. Its
+// shipped jest mock supplies static metrics and renders children synchronously.
+jest.mock(
+  'react-native-safe-area-context',
+  () => require('react-native-safe-area-context/jest/mock').default,
+);
+
 // react-native-config surfaces native build-time env vars to JS; in Jest there
 // is no native layer, so mock its default export as an empty Config object.
 // Config.X is therefore undefined and catalogConfig falls back to the code

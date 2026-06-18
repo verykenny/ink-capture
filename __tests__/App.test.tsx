@@ -6,7 +6,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react-native';
 import App from '../src/app/App';
 
-test('renders the Ink Capture title', () => {
+test('boots to the Collection screen', async () => {
   render(<App />);
-  expect(screen.getByText('Ink Capture')).toBeOnTheScreen();
+  expect(await screen.findByText('Collection')).toBeOnTheScreen();
 });
