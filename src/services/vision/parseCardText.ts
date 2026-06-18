@@ -71,13 +71,28 @@ const parseCollectorNumber = (
   return match ? String(Number(match[1])) : undefined;
 };
 
-/** Pick the title lines: the tall band when frames exist, else the first few. */
-const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
-  const maxHeight = Math.max(
-    ...candidates.map(line => line.frame?.height ?? 0),
-  );
+/** A line's name signal: its text with the collector number stripped + trimmed. */
+const toNameCandidate = (line: OcrTextLine): OcrTextLine => {
+  const text = line.text
+    .replace(COLLECTOR_NUMBER, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return line.frame ? { text, frame: line.frame } : { text };
+};
 
-  if (maxHeight > 0) {
+/**
+ * Pick the title lines: the tall band when EVERY candidate is framed, else the
+ * first few in reading order. Requiring all-framed (not just one) means a mixed
+ * read — where some lines carry frames and some don't — falls back to reading
+ * order instead of silently dropping the frameless lines as height 0.
+ */
+const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
+  const everyFramed = candidates.every(line => (line.frame?.height ?? 0) > 0);
+
+  if (everyFramed) {
+    const maxHeight = Math.max(
+      ...candidates.map(line => line.frame?.height ?? 0),
+    );
     const threshold = maxHeight * TITLE_HEIGHT_RATIO;
     return candidates
       .filter(line => (line.frame?.height ?? 0) >= threshold)
@@ -89,15 +104,18 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
 
 /** The joined title region, or undefined when no line carries a name signal. */
 const parseName = (lines: OcrTextLine[]): string | undefined => {
-  const candidates = lines.filter(
-    line => HAS_LETTER.test(line.text) && !COLLECTOR_NUMBER.test(line.text),
-  );
+  // Strip the collector number from each line first, so a line that mixes the
+  // name and the printed "123/204" still yields its name rather than being
+  // discarded wholesale as the collector line.
+  const candidates = lines
+    .map(toNameCandidate)
+    .filter(line => HAS_LETTER.test(line.text));
   if (candidates.length === 0) {
     return undefined;
   }
 
   const name = selectTitleLines(candidates)
-    .map(line => line.text.trim())
+    .map(line => line.text)
     .filter(text => text.length > 0)
     .join(' ')
     .replace(/\s+/g, ' ')

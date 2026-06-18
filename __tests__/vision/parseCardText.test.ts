@@ -136,6 +136,43 @@ describe('parseCardText', () => {
     });
   });
 
+  test('a single line carrying name + collector number still yields the name', () => {
+    // ML Kit occasionally groups the name and the printed number into one block
+    // with no per-line entries; blockAsLine surfaces it as one line. The name
+    // must survive (collector substring stripped), not be dropped wholesale.
+    const result = parseCardText({
+      text: 'Elsa Snow Queen 12/204',
+      blocks: [
+        {
+          text: 'Elsa Snow Queen 12/204',
+          lines: [],
+          frame: f(120, 520, 360, 84),
+        },
+      ],
+    });
+    expect(result).toEqual({ collectorNumber: '12', name: 'Elsa Snow Queen' });
+  });
+
+  test('mixed framed/frameless lines fall back to reading order (subtitle kept)', () => {
+    // Name framed, subtitle frameless, body framed. The all-framed band would
+    // drop the frameless subtitle (height 0); the reading-order fallback keeps it.
+    const result = parseCardText({
+      text: 'Elsa\nSnow Queen\nbody text here\n12/204',
+      blocks: [
+        {
+          text: 'Elsa\nSnow Queen\nbody text here\n12/204',
+          lines: [
+            line('Elsa', f(120, 520, 300, 84)),
+            line('Snow Queen'), // no frame on this line
+            line('body text here', f(120, 760, 420, 30)),
+            line('12/204', f(120, 1180, 110, 22)),
+          ],
+        },
+      ],
+    });
+    expect(result).toEqual({ collectorNumber: '12', name: 'Elsa Snow Queen' });
+  });
+
   test('empty OCR → empty source', () => {
     expect(parseCardText({ text: '', blocks: [] })).toEqual({});
   });
