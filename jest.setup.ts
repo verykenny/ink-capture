@@ -23,3 +23,10 @@ jest.mock('@op-engineering/op-sqlite', () => ({
     close: jest.fn(),
   })),
 }));
+
+// react-native-config surfaces native build-time env vars to JS; in Jest there
+// is no native layer, so mock its default export as an empty Config object.
+// Config.X is therefore undefined and catalogConfig falls back to the code
+// default (DEFAULT_CATALOG_BASE_URL). catalogConfig.test.ts mutates this object
+// to exercise the override branch.
+jest.mock('react-native-config', () => ({ __esModule: true, default: {} }));

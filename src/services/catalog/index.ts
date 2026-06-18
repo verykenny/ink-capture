@@ -12,6 +12,7 @@
 
 export * from './CatalogService';
 export * from './LorcanaCatalogService';
+export * from './catalogConfig';
 export * from './HttpJsonClient';
 export * from './lorcanaTypes';
 export { mapLorcanaCard } from './mapLorcanaCard';
