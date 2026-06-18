@@ -157,3 +157,51 @@ describe('createPersistenceService', () => {
     await db.close();
   });
 });
+
+describe('migration 002 — catalog cache (B3 creates, B2 populates)', () => {
+  let db: TestSqliteDatabase;
+
+  beforeEach(() => {
+    db = new TestSqliteDatabase();
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  test('fresh DB ends at version 2 with the catalog tables + indexes', async () => {
+    await runMigrations(db);
+
+    expect(await userVersion(db)).toBe(2);
+    const tables = await tableNames(db);
+    expect(tables).toContain('catalog_cards');
+    expect(tables).toContain('catalog_meta');
+    const indexes = await indexNames(db);
+    expect(indexes).toContain('ix_catalog_collector');
+    expect(indexes).toContain('ix_catalog_normalized_name');
+  });
+
+  test('forward-only: a v1 DB gets only 002 applied, preserving collection data', async () => {
+    // Simulate an app installed at schema v1 (migration 001 only).
+    await MIGRATIONS[0](db);
+    await db.execute('PRAGMA user_version = 1');
+    await rawInsert(db, { cardId: 'PRE-EXISTING' });
+
+    await runMigrations(db);
+
+    expect(await userVersion(db)).toBe(2);
+    expect(await tableNames(db)).toContain('catalog_cards');
+    // the v1 collection row is untouched by the forward migration
+    const surviving = await db.execute(
+      'SELECT card_id FROM collection_entries WHERE card_id=?',
+      ['PRE-EXISTING'],
+    );
+    expect(surviving.rows).toHaveLength(1);
+  });
+
+  test('catalog_meta is an empty key/value store (B2 owns its contents)', async () => {
+    await runMigrations(db);
+    const rows = await db.execute('SELECT key, value FROM catalog_meta');
+    expect(rows.rows).toEqual([]);
+  });
+});

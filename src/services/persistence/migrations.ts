@@ -39,12 +39,50 @@ const migration001 = async (db: SqliteDatabase): Promise<void> => {
 };
 
 /**
+ * Migration 002 — the catalog cache. B3 creates the tables; B2 populates them.
+ *
+ * `catalog_cards` mirrors the Card model (LorcanaJSON-sourced, read-only), with
+ * indexes for C1's lookups: an exact-hit (set_code, collector_number) — collector
+ * numbers repeat across sets — and a normalized_name index for the fuzzy fallback.
+ * `catalog_meta` is a generic key/value store for B2's catalog version/ETag.
+ */
+const migration002 = async (db: SqliteDatabase): Promise<void> => {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS catalog_cards (
+      id                 TEXT PRIMARY KEY,
+      name               TEXT NOT NULL,
+      normalized_name    TEXT NOT NULL,
+      version            TEXT,
+      set_code           TEXT NOT NULL,
+      collector_number   TEXT NOT NULL,
+      rarity             TEXT NOT NULL,
+      available_finishes TEXT NOT NULL,
+      image_url          TEXT
+    )`,
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS ix_catalog_collector
+      ON catalog_cards (set_code, collector_number)`,
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS ix_catalog_normalized_name
+      ON catalog_cards (normalized_name)`,
+  );
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS catalog_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    )`,
+  );
+};
+
+/**
  * Ordered, forward-only migrations. Index 0 is schema version 1, index 1 is
  * version 2, and so on; the runner advances PRAGMA user_version to the array
  * length once all pending migrations have applied.
  */
 export const MIGRATIONS: ReadonlyArray<(db: SqliteDatabase) => Promise<void>> =
-  [migration001];
+  [migration001, migration002];
 
 const readUserVersion = async (db: SqliteDatabase): Promise<number> => {
   const result = await db.execute('PRAGMA user_version');
