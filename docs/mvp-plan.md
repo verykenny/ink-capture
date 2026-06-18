@@ -99,23 +99,56 @@
   - **Test infra:** `jest.config.js` gained a scoped `testPathIgnorePatterns` for
     `__tests__/fixtures/` so the hand-authored fixtures helper isn't run as an
     empty suite; no `babel.config.js` / `tsconfig.json` alias changes.
-- **Next action:** Task **B3** (`feature/persistence-sqlite`) — SQLite schema,
-  migrations, and `CollectionRepository` (CRUD + merge-on-insert via B1's
-  `resolveAddition`); forces the SQLite-library decision (recommended
-  `op-sqlite`) and must add the `UNIQUE (cardId, finish, condition)` index the
-  merge rule relies on. B2 (catalog) is also unblocked by B1, but do B3 before
-  B2's persistence half (per §2). See §2 / the B3 task.
+- **B3 persistence (SQLite schema + collection repository) is complete**
+  (`feature/persistence-sqlite` → `development`): the `CollectionRepository` and
+  `PersistenceService` contracts get a SQLite body behind a thin `SqliteDatabase`
+  driver seam (`execute` + `close` + `withTransaction`), so the exact production
+  SQL runs against op-sqlite on a device (`OpSqliteDatabase`, the only op-sqlite
+  importer) and a real in-memory SQLite in Jest. Migration 001 creates
+  `collection_entries` with the **mandatory `UNIQUE (card_id, finish, condition)`
+  index** (B1's invariant — makes `resolveAddition`'s >1-stack throw structurally
+  impossible) plus `finish`/`condition`/`quantity` CHECKs; migration 002 creates
+  the catalog cache (`catalog_cards` + its two indexes, `catalog_meta`) for B2.
+  The runner is `PRAGMA user_version` + an ordered, forward-only, idempotent
+  migration array. `add()` is merge-on-insert: identity-scoped SELECT →
+  `resolveAddition` → faithful create/increment write (increment touches only
+  quantity + `updated_at`, by `targetId`; incoming notes dropped), all
+  transactional. Id is rowid-derived (`id = String(rowid)`, read back via
+  `RETURNING *`); the clock is injected for deterministic timestamps. Full local
+  gate green (87 tests; TDD red→green for migrations, CRUD, and merge-on-insert).
+  - **Ratified op-sqlite (the forcing PR):** `@op-engineering/op-sqlite` is now
+    the installed SQLite library (ask-first gate cleared by the user).
+  - **Test-engine decision (ratified in-flight):** the Jest SQLite engine is
+    Node's built-in **`node:sqlite`**, NOT a native devDependency. better-sqlite3
+    (the originally-ratified test engine) is a native `.node` addon, and Jest
+    sandboxes each test file's module registry — the second persistence spec to
+    load it re-runs `process.dlopen` on the process-global binary and corrupts it
+    so CHECK/UNIQUE violations silently stop throwing (a non-deterministic suite).
+    node:sqlite is compiled into Node → no dlopen, deterministic, zero dep.
+    **B2 must use the same `TestSqliteDatabase` helper** (`__tests__/persistence/`)
+    for its persistence specs. This bumped `engines.node` to `>=22.5.0` and added
+    `@types/node` + `"node"` to the tsconfig `types`.
+  - **B2 hand-off:** the catalog cache lives in `catalog_cards`
+    (id, name, normalized_name, version, set_code, collector_number, rarity,
+    available_finishes as a JSON array, image_url) and `catalog_meta(key, value)`
+    for the version/ETag — **B3 created them empty; B2 owns population + mapping.**
+- **Next action:** Task **B2** (`feature/catalog-service`) — fetch + map
+  LorcanaJSON → `Card`, cache with a version/ETag check, populate B3's
+  `catalog_cards` / `catalog_meta`. Unblocked by B1; B3's persistence half (the
+  cache schema) is now in place. See §2 / the B2 task.
 
 **Settled decisions (don't re-litigate):**
 
 - **Card finish model** (human-approved 2026-06-16): `finish = normal | foil`;
   enchanted and special/promo printings are distinct `Card` rows. **Applied in
   B1 (PR #17, merged 2026-06-17).**
+- **SQLite library → `@op-engineering/op-sqlite`** (ratified at B3, its forcing
+  PR). The Jest test engine is Node's built-in **`node:sqlite`** (not a native
+  devDependency — see the B3 status entry for why).
 
 **Recommendations not yet ratified** — each gets confirmed at its forcing PR, so
 treat as the default unless a human overrides:
 
-- SQLite → **op-sqlite** (forced at B3).
 - State management → **Zustand** (forced at C2).
 - OCR engine → **ML Kit Text Recognition** (forced at D1).
 
@@ -130,9 +163,9 @@ treat as the default unless a human overrides:
   plus `isFinish`/`isCondition` guards, and `CollectionEntry.addedAt`/`updatedAt`
   are settled as ISO 8601 UTC `string`s (the in-file "may switch to `Date`" note
   is gone; the branded `IsoTimestamp` type is explicitly deferred).
-- **B3 (from B1) — open:** enforce a `UNIQUE` index on
-  `(cardId, finish, condition)` in the SQLite schema — B1's `resolveAddition`
-  assumes at most one stack per identity and throws otherwise.
+- **B3 (from B1) — ✅ done:** the `UNIQUE (card_id, finish, condition)` index is
+  created in migration 001 and proven by test — B1's `resolveAddition` >1-stack
+  throw is now structurally unreachable in normal operation.
 - **B2:** Add `react-native-config` (or similar) so bare RN can read
   `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
   CLAUDE.md before adding.
@@ -287,14 +320,15 @@ doctor` to the README troubleshooting notes.
   change); build local index on collector number + normalized name. Add
   `react-native-config` for `CATALOG_API_BASE_URL`.
 - **Out:** Fuzzy matching itself (C1), images/prices, Lorcast secondary.
-- **Depends on:** B1; coordinates with B3 for where the cache lives — **do B3
-  before B2's persistence half**.
+- **Depends on:** B1; B3 (cache lives there) — **✅ B3 done:** populate the
+  `catalog_cards` + `catalog_meta` tables (migration 002) via the persistence
+  layer; use the `TestSqliteDatabase` (node:sqlite) helper for persistence specs.
 - **Acceptance:** Mapper unit-tested against a **tiny committed fixture (3–5
   cards)** — never the bulk file. IP guardrail noted in the PR. Env var added to
   `.env.example` with docs.
 - **Size:** **M.** Flag `react-native-config` as a small native dep in the PR.
 
-#### B3. Persistence: SQLite schema + collection repository — `feature/persistence-sqlite`
+#### B3. Persistence: SQLite schema + collection repository — `feature/persistence-sqlite` — ✅ implemented
 
 - **Scope (in):** Choose SQLite lib, init DB, migration runner, tables for
   catalog cache + `CollectionEntry`, implement `CollectionRepository` (CRUD +
@@ -302,11 +336,12 @@ doctor` to the README troubleshooting notes.
 - **Out:** UI, catalog fetching.
 - **Depends on:** B1, A3.
 - **Acceptance:** Repository tested (in-memory or on-device); migrations
-  idempotent.
-- **Size:** **M.** **Forces the SQLite decision → recommend `op-sqlite`**: the
-  actively-maintained successor (Margelo points `react-native-quick-sqlite`
-  users to it), JSI-based, faster, supports reactive queries we'll want for the
-  collection list. `quick-sqlite` is effectively legacy.
+  idempotent. — **met:** 87 green tests against in-memory `node:sqlite`; UNIQUE
+  index + idempotent re-init + merge-on-insert all proven by test.
+- **Size:** **M.** **SQLite decision ratified → `@op-engineering/op-sqlite`** (the
+  JSI-based, actively-maintained successor to `react-native-quick-sqlite`). Behind
+  the `SqliteDatabase` driver seam; the Jest engine is the built-in `node:sqlite`
+  (a native test devDep would corrupt under Jest's per-file module sandboxing).
 
 ### Milestone C — Vertical slice with a stub recognizer
 
@@ -410,7 +445,7 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 
 | Decision         | Forced by | Recommendation                                          |
 | ---------------- | --------- | ------------------------------------------------------- |
-| SQLite library   | B3        | **op-sqlite**                                           |
+| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)    |
 | State management | C2        | **Zustand**                                             |
 | OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device) |
 
