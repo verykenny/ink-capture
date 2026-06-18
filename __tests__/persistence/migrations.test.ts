@@ -1,7 +1,7 @@
 /**
- * Schema migration runner + migration 001 (collection_entries).
+ * Schema migration runner + migrations 001/002.
  *
- * Runs the real migration SQL against an in-memory better-sqlite3 engine via the
+ * Runs the real migration SQL against an in-memory node:sqlite engine via the
  * SqliteDatabase seam, so the UNIQUE index and CHECK constraints — the structural
  * backstops B1 relies on — are genuinely enforced here, not mocked.
  *
@@ -14,7 +14,7 @@ import type {
   SqliteDatabase,
   SqlParam,
 } from '@services/persistence/sqlite/SqliteDatabase';
-import { TestSqliteDatabase } from './testDatabase';
+import { RecordingSqliteDatabase, TestSqliteDatabase } from './testDatabase';
 
 const tableNames = async (db: SqliteDatabase): Promise<string[]> => {
   const result = await db.execute(
@@ -203,5 +203,47 @@ describe('migration 002 — catalog cache (B3 creates, B2 populates)', () => {
     await runMigrations(db);
     const rows = await db.execute('SELECT key, value FROM catalog_meta');
     expect(rows.rows).toEqual([]);
+  });
+});
+
+describe('runMigrations gates on user_version (no blind re-runs)', () => {
+  let inner: TestSqliteDatabase;
+
+  beforeEach(() => {
+    inner = new TestSqliteDatabase();
+  });
+
+  afterEach(async () => {
+    await inner.close();
+  });
+
+  const ddlFor = (recording: RecordingSqliteDatabase): string[] =>
+    recording.executed.filter(sql => /CREATE (TABLE|INDEX)/i.test(sql));
+
+  test('a second run emits no migration DDL and starts no transaction', async () => {
+    await runMigrations(inner);
+
+    const recording = new RecordingSqliteDatabase(inner);
+    await runMigrations(recording);
+
+    // Up-to-date DB: only the user_version probe runs; no CREATE, no BEGIN/COMMIT.
+    expect(ddlFor(recording)).toEqual([]);
+    expect(recording.verbs).not.toContain('BEGIN');
+    expect(recording.verbs).not.toContain('CREATE');
+  });
+
+  test('from v1 it runs ONLY migration 002 (001 is not re-executed)', async () => {
+    await MIGRATIONS[0](inner);
+    await inner.execute('PRAGMA user_version = 1');
+
+    const recording = new RecordingSqliteDatabase(inner);
+    await runMigrations(recording);
+
+    const ddl = ddlFor(recording);
+    // 002's objects are created…
+    expect(ddl.some(sql => /catalog_cards/.test(sql))).toBe(true);
+    // …and 001's table is NOT re-created (it was skipped, not just IF NOT EXISTS).
+    expect(ddl.some(sql => /collection_entries/.test(sql))).toBe(false);
+    expect(await userVersion(inner)).toBe(2);
   });
 });

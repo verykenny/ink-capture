@@ -14,7 +14,7 @@ import { createCollectionRepository } from '@services/persistence/SqliteCollecti
 import { runMigrations } from '@services/persistence/migrations';
 import type { SqlParam } from '@services/persistence/sqlite/SqliteDatabase';
 import type { CollectionRepository } from '@services';
-import { TestSqliteDatabase } from './testDatabase';
+import { RecordingSqliteDatabase, TestSqliteDatabase } from './testDatabase';
 import { newEntry } from '../fixtures/cards';
 
 const FIXED_NOW = '2026-06-17T12:00:00.000Z';
@@ -138,6 +138,24 @@ describe('SqliteCollectionRepository', () => {
       expect(updated.addedAt).toBe('2020-01-01T00:00:00.000Z'); // untouched
     });
 
+    test('leaves unmentioned mutable columns (cardId/finish/condition) untouched', async () => {
+      const id = await seed(db, {
+        cardId: 'TFC-115',
+        finish: 'foil',
+        condition: 'MP',
+        quantity: 1,
+      });
+
+      const updated = await repo.update(id, { quantity: 9 });
+
+      expect(updated.cardId).toBe('TFC-115');
+      expect(updated.finish).toBe('foil');
+      expect(updated.condition).toBe('MP');
+      expect(updated.quantity).toBe(9);
+      // and it round-trips through the DB unchanged
+      expect(await repo.getById(id)).toEqual(updated);
+    });
+
     test('can clear notes by passing undefined', async () => {
       const id = await seed(db, { notes: 'remove me' });
       const updated = await repo.update(id, { notes: undefined });
@@ -155,6 +173,19 @@ describe('SqliteCollectionRepository', () => {
         /9999/,
       );
     });
+
+    test('changing identity onto an existing stack rejects (UNIQUE) and leaves both rows intact', async () => {
+      const normalId = await seed(db, { cardId: 'C', finish: 'normal' });
+      await seed(db, { cardId: 'C', finish: 'foil' });
+
+      // Moving the normal stack onto the foil stack's identity collides.
+      await expect(repo.update(normalId, { finish: 'foil' })).rejects.toThrow(
+        /UNIQUE/i,
+      );
+      // Neither row was mutated or lost.
+      expect(await repo.list()).toHaveLength(2);
+      expect((await repo.getById(normalId))?.finish).toBe('normal');
+    });
   });
 
   describe('remove', () => {
@@ -170,16 +201,18 @@ describe('SqliteCollectionRepository', () => {
   });
 
   describe('add (merge-on-insert)', () => {
-    test('create: first add inserts a new stack with an id + equal timestamps', async () => {
-      const r = createCollectionRepository(db, { now: () => FIXED_NOW });
+    test('create: first add inserts a new stack with an id + equal timestamps from one clock read', async () => {
+      // A stepping clock proves added_at and updated_at come from a SINGLE now()
+      // read on create: a second read would surface 'T2'.
+      const r = createCollectionRepository(db, { now: stepClock('T1', 'T2') });
 
       const created = await r.add(newEntry({ quantity: 2, notes: 'first' }));
 
       expect(created.id).toBeTruthy();
       expect(created.quantity).toBe(2);
       expect(created.notes).toBe('first');
-      expect(created.addedAt).toBe(FIXED_NOW);
-      expect(created.updatedAt).toBe(FIXED_NOW);
+      expect(created.addedAt).toBe('T1');
+      expect(created.updatedAt).toBe('T1');
       // round-trips through the DB exactly as returned
       expect(await r.getById(created.id)).toEqual(created);
     });
@@ -229,7 +262,7 @@ describe('SqliteCollectionRepository', () => {
       expect(await r.list()).toHaveLength(4);
     });
 
-    test('a constraint violation inside add() rolls the whole transaction back', async () => {
+    test('a constraint violation in add() rejects and persists nothing', async () => {
       const r = createCollectionRepository(db, { now: () => FIXED_NOW });
 
       // quantity 0 is type-valid but fails the CHECK; the insert must not persist.
@@ -242,6 +275,26 @@ describe('SqliteCollectionRepository', () => {
         }),
       ).rejects.toThrow();
       expect(await r.list()).toHaveLength(0);
+    });
+
+    test('runs inside a transaction: a failed write triggers BEGIN → ROLLBACK, never COMMIT', async () => {
+      // Force the INSERT itself to fail (a real CHECK-violation insert is atomic
+      // on its own, so it can't prove the wrapper exists). The recording seam
+      // pins that add() opens and rolls back a transaction around the write.
+      const recording = new RecordingSqliteDatabase(db, sql =>
+        /INSERT INTO/i.test(sql),
+      );
+      const r = createCollectionRepository(recording, { now: () => FIXED_NOW });
+
+      await expect(r.add(newEntry())).rejects.toThrow(/injected/);
+
+      expect(recording.verbs).toContain('BEGIN');
+      expect(recording.verbs).toContain('ROLLBACK');
+      expect(recording.verbs).not.toContain('COMMIT');
+      // nothing reached the underlying DB
+      expect(
+        (await db.execute('SELECT * FROM collection_entries')).rows,
+      ).toHaveLength(0);
     });
   });
 });

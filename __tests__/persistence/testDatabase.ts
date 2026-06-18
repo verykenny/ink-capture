@@ -54,3 +54,38 @@ export class TestSqliteDatabase implements SqliteDatabase {
     this.db.close();
   }
 }
+
+/**
+ * Decorates a SqliteDatabase to (a) record every executed statement and (b)
+ * optionally inject a failure on a chosen statement. Lets specs pin behavior the
+ * end-state alone can't — e.g. that a transaction issues BEGIN then ROLLBACK and
+ * never COMMIT on a mid-transaction failure, or that re-running migrations emits
+ * no DDL. The fault is thrown BEFORE delegating, so the inner DB never sees the
+ * failed statement (mirroring a write that errors).
+ */
+export class RecordingSqliteDatabase implements SqliteDatabase {
+  /** Every SQL string passed to execute(), in order. */
+  readonly executed: string[] = [];
+
+  constructor(
+    private readonly inner: SqliteDatabase,
+    private readonly failOn?: (sql: string) => boolean,
+  ) {}
+
+  /** Leading keyword of each executed statement, upper-cased (BEGIN, COMMIT, …). */
+  get verbs(): string[] {
+    return this.executed.map(sql => sql.trim().split(/\s+/)[0].toUpperCase());
+  }
+
+  async execute(sql: string, params?: readonly SqlParam[]): Promise<SqlResult> {
+    this.executed.push(sql);
+    if (this.failOn?.(sql)) {
+      throw new Error(`RecordingSqliteDatabase: injected failure on: ${sql}`);
+    }
+    return this.inner.execute(sql, params);
+  }
+
+  async close(): Promise<void> {
+    return this.inner.close();
+  }
+}

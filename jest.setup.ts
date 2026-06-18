@@ -14,9 +14,9 @@ jest.mock('react-native-vision-camera', () => ({
 
 // @op-engineering/op-sqlite is a native (JSI) module; mock it so any transitive
 // import of the production adapter (OpSqliteDatabase) resolves in Jest without
-// the native binary. Persistence tests exercise REAL SQLite through the
-// better-sqlite3 driver seam, so this mock only satisfies the import — it is
-// never the engine under test.
+// the native binary. Persistence tests exercise REAL SQLite through Node's
+// built-in node:sqlite (the TestSqliteDatabase seam), so this mock only
+// satisfies the import — op-sqlite is never the engine under test.
 jest.mock('@op-engineering/op-sqlite', () => ({
   open: jest.fn(() => ({
     execute: jest.fn(async () => ({ rows: [], rowsAffected: 0 })),
