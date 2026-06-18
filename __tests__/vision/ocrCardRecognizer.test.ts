@@ -128,4 +128,87 @@ describe('createOcrCardRecognizer', () => {
     expect(result.candidates).toEqual([]);
     expect(result.source).toEqual({});
   });
+
+  test('real spike capture (Thomas #1) resolves over same-number decoys via the cleaned name', async () => {
+    // Collector #1 collides across many cards, so the name must disambiguate. The
+    // tall "O4" lore glyph must NOT pollute the name or Thomas loses to the others.
+    const thomas: Card = {
+      id: '2464',
+      name: 'Thomas',
+      version: 'Wide-Eyed Recruit',
+      setCode: 'URR',
+      collectorNumber: '1',
+      rarity: 'Common',
+      availableFinishes: ['normal', 'foil'],
+    };
+    const mickeyOne: Card = {
+      id: '1191',
+      name: 'Mickey Mouse',
+      version: 'Brave Little Tailor',
+      setCode: 'TFC',
+      collectorNumber: '1',
+      rarity: 'Legendary',
+      availableFinishes: ['normal'],
+    };
+    const owlOne: Card = {
+      id: '1200',
+      name: 'Owl',
+      version: 'Pirate Lookout',
+      setCode: 'ITI',
+      collectorNumber: '1',
+      rarity: 'Common',
+      availableFinishes: ['normal'],
+    };
+    const realCatalog: CatalogReader = {
+      getAllCards: async () => [thomas, mickeyOne, owlOne],
+    };
+
+    // Geometry from the live spike capture; flavor line synthesized (IP-clean).
+    const frame = (x: number, y: number, width: number, height: number) => ({
+      x,
+      y,
+      width,
+      height,
+    });
+    const ocr: OcrResult = {
+      text: 'O4\nTHOMAS\nWide-Eyed Recruit\n1/204- EN .11',
+      blocks: [
+        {
+          text: 'O4',
+          lines: [{ text: 'O4', frame: frame(2243, 2264, 429, 216) }],
+          frame: frame(2243, 2264, 429, 216),
+        },
+        {
+          text: 'THOMAS\nWide-Eyed Recruit',
+          lines: [
+            { text: 'THOMAS', frame: frame(465, 2228, 546, 150) },
+            { text: 'Wide-Eyed Recruit', frame: frame(469, 2398, 629, 99) },
+          ],
+          frame: frame(464, 2228, 635, 272),
+        },
+        {
+          text: '1/204- EN .11',
+          lines: [{ text: '1/204- EN .11', frame: frame(432, 3693, 358, 78) }],
+          frame: frame(432, 3693, 358, 78),
+        },
+      ],
+    };
+
+    const recognizeText = jest.fn(
+      async (_uri: string): Promise<OcrResult> => ocr,
+    );
+    const recognizer = createOcrCardRecognizer({
+      engine: { recognizeText },
+      matcher: createCardMatcher(realCatalog),
+    });
+
+    const result = await recognizer.recognize({
+      uri: 'file:///tmp/thomas.jpg',
+    });
+    expect(result.candidates[0].card).toEqual(thomas);
+    expect(result.source).toEqual({
+      collectorNumber: '1',
+      name: 'THOMAS Wide-Eyed Recruit',
+    });
+  });
 });

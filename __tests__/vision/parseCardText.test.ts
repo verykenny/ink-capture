@@ -184,3 +184,91 @@ describe('parseCardText', () => {
     expect(result).toEqual({});
   });
 });
+
+/**
+ * Real ML Kit captures from the D1 spike — the failure modes that the live photos
+ * exposed. IP-clean: real geometry + card names + collector numbers (facts), but
+ * ability/flavor prose is SYNTHESIZED placeholder, never the copyrighted text.
+ *
+ * On real cards the name is found by HEIGHT, not a height band: cards print huge
+ * lore/strength glyphs ("O4", "43") that are taller than the name, and body text
+ * tall enough to slip past a 0.5 band. The parser must take the tallest alphabetic
+ * line as the name and the nearest sized line below as the subtitle.
+ */
+describe('parseCardText — real spike captures', () => {
+  test('Thomas #1: tall "O4" lore glyph is excluded; name + subtitle resolve', () => {
+    const result = parseCardText(
+      ocr([
+        line('O4', f(2243, 2264, 429, 216)), // lore glyph — TALLER than the name
+        line('THOMAS', f(465, 2228, 546, 150)),
+        line('Wide-Eyed Recruit', f(469, 2398, 629, 99)),
+        line('Storyborn • Ally', f(1305, 2553, 553, 93)),
+        line('Lorem ipsum dolor sit amet consectetur', f(480, 3075, 1929, 110)), // synth flavor
+        line('1/204- EN .11', f(432, 3693, 358, 78)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '1',
+      name: 'THOMAS Wide-Eyed Recruit',
+    });
+  });
+
+  test('Gizmoduck #105: "43" strength glyph (tallest) is not mistaken for the name', () => {
+    const result = parseCardText(
+      ocr([
+        line('43', f(2198, 1989, 511, 256)), // strength glyph — tallest line on the card
+        line('GIZMODUCK', f(525, 1974, 748, 142)),
+        line('Suited Up', f(523, 2130, 308, 90)),
+        line('Storyborn • Inventor', f(1256, 2294, 691, 89)),
+        line('Lorem ipsum dolor sit amet', f(522, 2569, 1664, 118)), // synth ability
+        line('105/204· EN .7', f(467, 3393, 407, 63)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '105',
+      name: 'GIZMODUCK Suited Up',
+    });
+  });
+
+  test('Mirabel #19: a stat digit merged onto the name ("MADRIGAL22") is stripped', () => {
+    const result = parseCardText(
+      ocr([
+        line('MIRABEL MADRIGAL22', f(572, 2135, 2075, 249)),
+        line('Prophecy Finder', f(519, 2323, 526, 104)),
+        line('Storyborn • Hero Madrigal', f(1117, 2464, 936, 101)),
+        line('19/204 - EN .4', f(507, 3561, 368, 61)),
+      ]),
+    );
+    // The name line is so tall the smaller subtitle drops; the matcher still
+    // resolves "Mirabel Madrigal" via the exact collector tier.
+    expect(result).toEqual({ collectorNumber: '19', name: 'MIRABEL MADRIGAL' });
+  });
+
+  test('Restoring the Heart #39: a song (no subtitle); the "Action" type line drops out', () => {
+    const result = parseCardText(
+      ocr([
+        line('1', f(520, 281, 26, 112)), // ink cost
+        line('RESTORING THE HEART', f(796, 2014, 1499, 167)),
+        line('Action', f(1417, 2290, 229, 75)),
+        line('Lorem ipsum dolor sit amet consectetur', f(444, 2558, 2016, 119)), // synth ability
+        line('39/204· EN•7', f(377, 3452, 395, 64)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '39',
+      name: 'RESTORING THE HEART',
+    });
+  });
+
+  test('Eilonwy #7: collector misread "T/204" → no number, but the clean name carries it', () => {
+    const result = parseCardText(
+      ocr([
+        line('EILONWY', f(445, 2196, 612, 155)),
+        line('Princess of Llyr', f(440, 2369, 542, 107)),
+        line('Storyborn • Ally • Princess', f(1125, 2516, 967, 116)),
+        line('T/204EN .10', f(422, 3740, 390, 78)), // the "7" misread as "T" — no match
+      ]),
+    );
+    expect(result).toEqual({ name: 'EILONWY Princess of Llyr' });
+  });
+});
