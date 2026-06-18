@@ -14,7 +14,7 @@ import type {
   SqliteDatabase,
   SqlParam,
 } from '@services/persistence/sqlite/SqliteDatabase';
-import { BetterSqliteDatabase } from './testDatabase';
+import { TestSqliteDatabase } from './testDatabase';
 
 const tableNames = async (db: SqliteDatabase): Promise<string[]> => {
   const result = await db.execute(
@@ -63,10 +63,10 @@ const rawInsert = (
   );
 
 describe('runMigrations', () => {
-  let db: BetterSqliteDatabase;
+  let db: TestSqliteDatabase;
 
   beforeEach(() => {
-    db = new BetterSqliteDatabase();
+    db = new TestSqliteDatabase();
   });
 
   afterEach(async () => {
@@ -147,7 +147,7 @@ describe('runMigrations', () => {
 
 describe('createPersistenceService', () => {
   test('init() applies migrations to a fresh DB', async () => {
-    const db = new BetterSqliteDatabase();
+    const db = new TestSqliteDatabase();
     const service = createPersistenceService(db);
 
     await service.init();

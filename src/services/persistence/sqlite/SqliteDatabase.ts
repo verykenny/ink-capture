@@ -3,9 +3,10 @@
  *
  * The repository and migrations depend only on this minimal interface — never on
  * op-sqlite directly — so the exact same SQL runs against op-sqlite on a device
- * (OpSqliteDatabase) and a real in-memory SQLite in Jest (BetterSqliteDatabase,
- * a test helper). That keeps the UNIQUE constraint, CHECKs, and merge-on-insert
- * genuinely enforced in tests rather than faked.
+ * (OpSqliteDatabase) and a real in-memory SQLite in Jest (TestSqliteDatabase, a
+ * test helper backed by Node's built-in node:sqlite). That keeps the UNIQUE
+ * constraint, CHECKs, and merge-on-insert genuinely enforced in tests rather
+ * than faked.
  *
  * @format
  */

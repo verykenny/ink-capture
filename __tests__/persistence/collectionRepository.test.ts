@@ -12,13 +12,13 @@ import { createCollectionRepository } from '@services/persistence/SqliteCollecti
 import { runMigrations } from '@services/persistence/migrations';
 import type { SqlParam } from '@services/persistence/sqlite/SqliteDatabase';
 import type { CollectionRepository } from '@services';
-import { BetterSqliteDatabase } from './testDatabase';
+import { TestSqliteDatabase } from './testDatabase';
 
 const FIXED_NOW = '2026-06-17T12:00:00.000Z';
 
 /** Insert a row directly (bypassing add) and return its domain id. */
 const seed = async (
-  db: BetterSqliteDatabase,
+  db: TestSqliteDatabase,
   overrides: Partial<{
     cardId: string;
     quantity: number;
@@ -47,11 +47,11 @@ const seed = async (
 };
 
 describe('SqliteCollectionRepository', () => {
-  let db: BetterSqliteDatabase;
+  let db: TestSqliteDatabase;
   let repo: CollectionRepository;
 
   beforeEach(async () => {
-    db = new BetterSqliteDatabase();
+    db = new TestSqliteDatabase();
     await runMigrations(db);
     repo = createCollectionRepository(db, { now: () => FIXED_NOW });
   });
