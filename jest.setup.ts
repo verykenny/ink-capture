@@ -33,6 +33,17 @@ jest.mock(
   () => require('react-native-safe-area-context/jest/mock').default,
 );
 
+// @react-native-ml-kit/text-recognition is a native module; mock it so any
+// transitive import of MlKitOcrEngine (via the @services barrel) resolves in
+// Jest without the native binary. D1's parser + recognizer are tested against a
+// FAKE OcrEngine, so this mock only satisfies the import — its recognize() is
+// never the unit under test and simply returns an empty result.
+jest.mock('@react-native-ml-kit/text-recognition', () => ({
+  __esModule: true,
+  default: { recognize: jest.fn(async () => ({ text: '', blocks: [] })) },
+  TextRecognitionScript: { LATIN: 'Latin' },
+}));
+
 // react-native-config surfaces native build-time env vars to JS; in Jest there
 // is no native layer, so mock its default export as an empty Config object.
 // Config.X is therefore undefined and catalogConfig falls back to the code
