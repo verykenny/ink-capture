@@ -15,21 +15,21 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, Text, View } from 'react-native';
 import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
+import { ScanScreen } from '@ui/scan/ScanScreen';
 import type { RootStackParamList } from '@ui/navigationTypes';
 
 export type { RootStackParamList } from '@ui/navigationTypes';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Placeholder screens — replaced by the real @ui screens in the following C2
-// commits (scan → confirm). They keep this shell buildable until each lands.
+// Placeholder screen — replaced by the real ConfirmSheet in the next C2 commit.
+// Keeps this shell buildable until it lands.
 const Placeholder = ({ label }: { label: string }): React.JSX.Element => (
   <View style={styles.placeholder}>
     <Text>{label}</Text>
   </View>
 );
 
-const ScanPlaceholder = (): React.JSX.Element => <Placeholder label="Scan" />;
 const ConfirmPlaceholder = (): React.JSX.Element => (
   <Placeholder label="Confirm" />
 );
@@ -44,7 +44,7 @@ export function RootNavigator(): React.JSX.Element {
       />
       <Stack.Screen
         name="Scan"
-        component={ScanPlaceholder}
+        component={ScanScreen}
         options={{ title: 'Scan a Card' }}
       />
       <Stack.Screen
