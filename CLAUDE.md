@@ -33,7 +33,12 @@ the draft data model.
   via a vision-camera frame processor).
 - SQLite via `op-sqlite` or `react-native-quick-sqlite` for local storage —
   _TBD which_.
-- State management — _TBD_ (e.g. Zustand, or context + reducers).
+- **Navigation: React Navigation native-stack + `react-native-screens`** —
+  _confirmed_ (ratified at C2). Shape: Collection (initial) → Scan → Confirm
+  (modal).
+- **State management: Zustand** — _confirmed_ (ratified at C2). A vanilla store
+  built over the `CollectionRepository` interface, provided to screens via a
+  React context (`@state/appServices`).
 - **Card catalog: LorcanaJSON** (bulk `allCards.json`, cached on-device) —
   _confirmed_. Chosen because it is the only true bulk source, fitting the
   offline-first OCR backend that matches against a cached catalog locally.

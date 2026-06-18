@@ -10,7 +10,7 @@
 > Keep this section current as work lands — it's the handoff state for the next
 > contributor (human or agent).
 
-**As of 2026-06-17:**
+**As of 2026-06-18:**
 
 - **A2 dev tooling + CI gate is complete** (`chore/dev-tooling-ci` →
   `development`): the four quality scripts (`lint`, `format:check`, `typecheck`,
@@ -205,12 +205,54 @@
     (`getAllCards()` → `similarity` over every row) — fine for MVP/stub; a
     `normalized_name`-index prefilter is a future optimization that matters at
     **D1** (real-time scanning).
-- **Next action:** Task **C2** (`feature/scan-to-collection-slice`) — the
-  scan→confirm→save vertical slice + browse, wired with
-  `StubCardRecognizer.forCard(...)` + the real catalog + real persistence. Also
-  removes B3's temporary "Test DB" smoke button from `App.tsx`. Forces the
-  state-management decision (recommend Zustand). Unblocked by C1 + B2 + B3. See
-  §2 / the C2 task.
+- **C2 scan→confirm→add-to-collection slice + browse is complete**
+  (`feature/scan-to-collection-slice`, PR → `development`): the first end-to-end
+  runnable product — navigation, a Zustand store, the three screens, and the real
+  composition root, wired with `StubCardRecognizer.forCard(demoCard)` + the real
+  catalog + real persistence. Relaunch lands on the persisted Collection list;
+  scan (stub) → confirm (finish/condition pickers from `FINISHES`/`CONDITIONS`,
+  quantity) → save via `CollectionRepository.add` (merge-on-insert) → the entry
+  appears in the list and survives restart. The temporary B3 "Test DB" button +
+  inline composition root are removed. Full local gate green (24 suites / 206
+  tests; TDD red→green for the store; RNTL render/interaction tests for all three
+  screens + the App smoke through the loading gate). What landed:
+  - **State = Zustand** (forcing PR; ask-first cleared). A **vanilla store**
+    (`@state/collectionStore`, `createCollectionStore(repo)`) over the
+    `CollectionRepository` **interface** — never SQLite — holding the collection
+    list + a load/add status. `add` re-lists after the write so merge-on-insert
+    is reflected exactly as the repository resolved it.
+  - **Navigation = React Navigation native-stack + `react-native-screens`**
+    (native dep; ask-first cleared). Shape: **Collection (initial) → Scan →
+    Confirm (modal)**. Android `MainActivity.onCreate(null)` added per the
+    `react-native-screens` requirement; `pod install` autolinks iOS (documented
+    on-sim acceptance, DoD native exception).
+  - **Injectable composition root** — `@app/compositionRoot.createAppServices()`
+    builds the concrete graph; `initialize()` runs the startup sequence
+    (`persistence.init()` → `catalog.sync()` → pick demo card → wire the stub
+    recognizer → `store.load()`) behind a minimal loading gate; `App({ services })`
+    accepts injected fakes (tests run with no DB/network/native). **D1 swaps the
+    recognizer in one line** in `initialize()`.
+  - **`@state`/`@ui` conventions set (E1/E2/E3 inherit):** dependency direction
+    `@ui → @state → @domain`; services are consumed as **interfaces** via a React
+    context (`@state/appServices`, `useAppServices`) — the context lives in
+    `@state` (not `@app`) so UI never imports outward (there is no `@app` alias).
+    The route table (`RootStackParamList`) lives in `@ui/navigationTypes` for the
+    same reason. Only `@app` imports concrete services. Pickers are a generic
+    segmented `OptionSelector` fed the domain `FINISHES`/`CONDITIONS` sets (no
+    picker native dep). **Confidence is a display hint only — never gates Save.**
+  - **Jest wiring:** `transformIgnorePatterns` now whitelists `@react-navigation`
+    - its native peers (they ship ESM), and `react-native-safe-area-context` is
+      mocked with its shipped jest mock (its provider withholds children until an
+      onLayout that never fires under Jest). Screens are tested by rendering the
+      component directly (no `NavigationContainer`), so `react-native-screens` is
+      not exercised there.
+  - **Deliberately out (clean seams):** real OCR (D1), edit/remove (E1), rich
+    first-run/offline/no-match/error UX (E2 — C2 has a minimal gate + no-match
+    branch only), search/stats (E3).
+- **Next action:** Task **D1** (`feature/ocr-recognition`) — the vision-camera
+  OCR frame processor + `OcrCardRecognizer`, swapped in behind `CardRecognizer`
+  (the one-line change in `@app/compositionRoot.initialize()`). **Ask-first** on
+  the ML Kit frame-processor native dep. Unblocked by C1 + C2.
 
 **Settled decisions (don't re-litigate):**
 
@@ -229,11 +271,15 @@
   catalog-service interface.
 - **Env config → `react-native-config`** (^1.6.1, ratified at B2). Surfaces an
   optional `CATALOG_API_BASE_URL` override; the canonical URL is a code default.
+- **State management → Zustand** (ratified at C2, its forcing PR). A vanilla
+  store over the `CollectionRepository` interface, provided via React context.
+- **Navigation → React Navigation native-stack + `react-native-screens`**
+  (ratified at C2; native-dep ask-first cleared). Shape: Collection → Scan →
+  Confirm (modal).
 
 **Recommendations not yet ratified** — each gets confirmed at its forcing PR, so
 treat as the default unless a human overrides:
 
-- State management → **Zustand** (forced at C2).
 - OCR engine → **ML Kit Text Recognition** (forced at D1).
 
 **Carry-over actions for later PRs (easy to forget):**
@@ -250,13 +296,10 @@ treat as the default unless a human overrides:
 - **B3 (from B1) — ✅ done:** the `UNIQUE (card_id, finish, condition)` index is
   created in migration 001 and proven by test — B1's `resolveAddition` >1-stack
   throw is now structurally unreachable in normal operation.
-- **C2 (from B3) — open:** remove the **temporary "Test DB" smoke button** in
-  `src/app/App.tsx` (throwaway scaffolding that verified the op-sqlite binding on
-  device). Revert commit `f27ea39` or delete everything tagged
-  `TODO(C2): remove this temporary debug affordance` (the button, its handler, the
-  inline composition root, and the `debugButton` style). C2 wires the real
-  persistence composition root + collection UI, so this debug affordance retires
-  with it.
+- **C2 (from B3) — ✅ done:** the temporary "Test DB" smoke button, its handler,
+  the inline composition root, and the `debugButton` style were removed when
+  `App.tsx` was replaced by the real navigation/composition root. No `TODO(C2)`
+  markers remain.
 - **E1 (from B3 review) — open:** `CollectionRepository.update()` can change
   `finish`/`condition`, which may move a row onto another stack's identity and hit
   the `UNIQUE (card_id, finish, condition)` index — it **throws rather than
@@ -494,7 +537,7 @@ doctor` to the README troubleshooting notes.
     merging the exact + fuzzy tiers and memoizing `getAllCards()` per `match()`
     are later refinements.
 
-#### C2. Scan → confirm → add-to-collection slice + browse — `feature/scan-to-collection-slice`
+#### C2. Scan → confirm → add-to-collection slice + browse — `feature/scan-to-collection-slice` — ✅ implemented
 
 - **Scope (in):** Navigation, camera/scan screen (capture a frame), confirm sheet
   (top candidate + finish/condition pickers), write via `CollectionRepository`,
@@ -505,10 +548,15 @@ doctor` to the README troubleshooting notes.
 - **Out:** Real OCR (next milestone), edit/remove, stats.
 - **Depends on:** C1, B3, B2.
 - **Acceptance:** On device/sim you can "scan" (stub), confirm, save, and see it
-  in the list across app restarts. State layer tested where non-trivial.
-- **Size:** **L.** **Forces the state-management decision → recommend Zustand**
-  (no provider boilerplate, tiny, pairs well with op-sqlite reactive reads;
-  context+reducers is more ceremony for no benefit at this scale).
+  in the list across app restarts. State layer tested where non-trivial. — **met
+  (logic/CI):** 24 suites / 206 tests green — the store over the real repo on
+  `TestSqliteDatabase` (incl. merge-on-insert), RNTL tests for all three screens,
+  and an `App` smoke through the loading gate; no network/native in Jest. The
+  across-restart loop is the documented on-sim acceptance (DoD native exception).
+- **Size:** **L.** **State-management decision → Zustand (ratified).** Navigation
+  → React Navigation native-stack + `react-native-screens` (native-dep ask-first
+  cleared). Composition root is injectable; the recognizer is the stub
+  (`StubCardRecognizer.forCard(demoCard)`), swapped for OCR in one line at D1.
 
 ### Milestone D — Real recognition (swap the stub)
 
@@ -581,11 +629,12 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 
 ## Open decisions & their forcing PRs
 
-| Decision         | Forced by | Recommendation                                          |
-| ---------------- | --------- | ------------------------------------------------------- |
-| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)    |
-| State management | C2        | **Zustand**                                             |
-| OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device) |
+| Decision         | Forced by | Recommendation                                            |
+| ---------------- | --------- | --------------------------------------------------------- |
+| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)      |
+| State management | C2        | ✅ **Zustand** (ratified; vanilla store over the repo)    |
+| Navigation       | C2        | ✅ **React Navigation** native-stack + screens (ratified) |
+| OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device)   |
 
 The **enchanted-vs-foil** modeling for B1 is settled (`finish = normal | foil`;
 enchanted/special are distinct `Card` rows) **and implemented in B1 (PR #17)**.

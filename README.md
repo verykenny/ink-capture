@@ -56,8 +56,11 @@ deck building, and pricing are explicitly out of scope for the MVP.
   — _TBD which library_.
 - **OCR engine:** _TBD_ — on-device text recognition (e.g. ML Kit / platform
   Vision via a vision-camera frame processor). To be selected during scaffolding.
-- **State management:** _TBD_ (lightweight store such as Zustand, or React
-  context + reducers).
+- **State management:** **[Zustand](https://github.com/pmndrs/zustand)** —
+  _confirmed_ (ratified at C2). A vanilla store over the `CollectionRepository`
+  interface; no provider boilerplate.
+- **Navigation:** **[React Navigation](https://reactnavigation.org/)**
+  native-stack + `react-native-screens` — _confirmed_ (ratified at C2).
 
 ---
 
