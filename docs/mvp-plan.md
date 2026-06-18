@@ -186,12 +186,25 @@
 - **✅ Milestone B (Domain & Data) is complete** — B1 + B2 + B3 all merged. The
   domain models/rules, the SQLite persistence + repository, and the catalog
   sync-and-cache are all in place and tested.
-- **✅ C1 implemented (`feature/recognition-matching`)** — the pure matching
-  engine (exact collector-number tier → fuzzy normalized-name fallback, ranked
-  candidates + confidence), the `createCardMatcher` seam over
+- **C1 recognition matching engine + stub recognizer is complete**
+  (`feature/recognition-matching`, PR #23 → `development`, merged 2026-06-17) —
+  the pure matching engine (exact collector-number tier → fuzzy normalized-name
+  fallback, ranked candidates + confidence), the `createCardMatcher` seam over
   `CatalogReader`, the shared `cardMatchKey` (catalogCache delegates to it), and
-  `StubCardRecognizer` all landed and tested (fixtures only). See the C1 task
-  below for the full breakdown. **C2 is now unblocked.**
+  `StubCardRecognizer` all landed and tested (fixtures only; 189 tests green). See
+  the C1 task below for the full breakdown. **C2 is now unblocked.**
+  - **Settled fuzzy approach:** a **hand-rolled Levenshtein** + normalized
+    `similarity` → [0,1] (`src/domain/matching/levenshtein.ts`) — no fuzzy-lib
+    dependency. (Closes the "small lib vs. hand-rolled" open recommendation.)
+  - **Downstream notes (from C1 review, non-blocking):** (1) **`confidence` is a
+    relative ranking score, not a calibrated probability** — exact-no-name is
+    `1/N` (ambiguity), exact-with-name and fuzzy are name `similarity`, so a
+    correct exact hit with an off name can read <1.0. **C2 should use it as a
+    confirm-UI hint + ordering only**; **D2** formalizes thresholds/manual
+    fallback. (2) The fuzzy tier **scans the whole catalog in memory per match**
+    (`getAllCards()` → `similarity` over every row) — fine for MVP/stub; a
+    `normalized_name`-index prefilter is a future optimization that matters at
+    **D1** (real-time scanning).
 - **Next action:** Task **C2** (`feature/scan-to-collection-slice`) — the
   scan→confirm→save vertical slice + browse, wired with
   `StubCardRecognizer.forCard(...)` + the real catalog + real persistence. Also
