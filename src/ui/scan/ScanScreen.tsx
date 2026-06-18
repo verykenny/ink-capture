@@ -2,17 +2,21 @@
  * ScanScreen — camera capture, the entry point of the scan→confirm→save loop.
  *
  * Carries over A1's camera-permission probe + live back-camera preview, and adds
- * a Capture action: it runs the injected `CardRecognizer` and pushes the Confirm
- * route with the result. The recognizer is the C2 stub (it ignores the image), so
- * Capture works even without a physical camera device (e.g. on a simulator);
- * D1's OcrCardRecognizer swaps in behind the same interface and will capture a
- * real frame to OCR. Confidence is never thresholded here — the user always
- * confirms on the next screen.
+ * a real Capture action: it takes a still with `camera.takePhoto()`, runs the
+ * injected `CardRecognizer` over the captured file, pushes the Confirm route with
+ * the result, and then deletes the temp still (privacy + storage) in a `finally`.
+ * D1's OcrCardRecognizer reads the still with ML Kit; the C2 stub ignores the URI
+ * — either satisfies the same interface. Confidence is never thresholded here:
+ * the user always confirms on the next screen, so a low-confidence (or empty)
+ * read still routes to Confirm.
+ *
+ * Capture needs a real camera device, so it is offered only when one is present
+ * (a simulator reports none); the preview area explains the no-device case.
  *
  * @format
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -26,20 +30,18 @@ import {
   useCameraDevice,
   useCameraPermission,
 } from 'react-native-vision-camera';
+import { unlink } from '@dr.pogodin/react-native-fs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Scan'>;
 
-// The stub recognizer ignores the image; D1 replaces this with a real captured
-// still (camera.takePhoto()) to OCR.
-const STUB_CAPTURE_URI = 'capture://stub';
-
 export function ScanScreen({ navigation }: Props): React.JSX.Element {
   const { recognizer } = useAppServices();
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  const cameraRef = useRef<Camera>(null);
   const [didRequest, setDidRequest] = useState(false);
 
   useEffect(() => {
@@ -59,8 +61,21 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
   }, [hasPermission, requestPermission]);
 
   const onCapture = useCallback(async () => {
-    const result = await recognizer.recognize({ uri: STUB_CAPTURE_URI });
-    navigation.navigate('Confirm', { result });
+    const camera = cameraRef.current;
+    if (!camera) {
+      return;
+    }
+    const photo = await camera.takePhoto();
+    try {
+      const result = await recognizer.recognize({
+        uri: `file://${photo.path}`,
+      });
+      navigation.navigate('Confirm', { result });
+    } finally {
+      // Best-effort: delete the captured still so card photos don't linger on
+      // disk. Cleanup failure must not mask the recognition result.
+      await unlink(photo.path).catch(() => undefined);
+    }
   }, [recognizer, navigation]);
 
   if (!hasPermission) {
@@ -92,25 +107,36 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
     <View style={styles.container}>
       <View style={styles.preview}>
         {device ? (
-          <Camera style={StyleSheet.absoluteFill} device={device} isActive />
+          <Camera
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive
+            photo
+          />
         ) : (
           <Text style={styles.status}>
-            No camera device found (expected on a simulator). Capture still
-            works with the stub recognizer.
+            No camera device found (expected on a simulator). Connect a device
+            to scan a card.
           </Text>
         )}
       </View>
 
-      <TouchableOpacity
-        style={styles.captureButton}
-        onPress={() => {
-          // eslint-disable-next-line no-void -- fire-and-forget the async capture
-          void onCapture();
-        }}
-        accessibilityRole="button"
-      >
-        <Text style={styles.captureButtonText}>Capture</Text>
-      </TouchableOpacity>
+      {device ? (
+        <TouchableOpacity
+          style={styles.captureButton}
+          onPress={() => {
+            // Fire-and-forget: cleanup runs in onCapture's finally; surfacing a
+            // capture/recognition failure is E2. The catch keeps a hard error
+            // from becoming an unhandled rejection.
+            // eslint-disable-next-line no-void -- fire-and-forget the async capture
+            void onCapture().catch(() => undefined);
+          }}
+          accessibilityRole="button"
+        >
+          <Text style={styles.captureButtonText}>Capture</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

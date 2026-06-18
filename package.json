@@ -24,6 +24,7 @@
     ]
   },
   "dependencies": {
+    "@dr.pogodin/react-native-fs": "^2.39.0",
     "@op-engineering/op-sqlite": "^16.2.2",
     "@react-native-ml-kit/text-recognition": "^2.0.0",
     "@react-native/new-app-screen": "0.86.0",

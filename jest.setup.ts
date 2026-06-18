@@ -33,6 +33,14 @@ jest.mock(
   () => require('react-native-safe-area-context/jest/mock').default,
 );
 
+// @dr.pogodin/react-native-fs is a native module; mock it so ScanScreen's
+// temp-file cleanup (unlink of the captured still) resolves in Jest without
+// touching the filesystem.
+jest.mock('@dr.pogodin/react-native-fs', () => ({
+  __esModule: true,
+  unlink: jest.fn(() => Promise.resolve()),
+}));
+
 // @react-native-ml-kit/text-recognition is a native module; mock it so any
 // transitive import of MlKitOcrEngine (via the @services barrel) resolves in
 // Jest without the native binary. D1's parser + recognizer are tested against a
