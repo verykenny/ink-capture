@@ -49,8 +49,11 @@ describe('isSameStack', () => {
 });
 
 describe('resolveAddition', () => {
-  test('empty collection → create (carries the incoming entry)', () => {
-    const incoming = newEntry();
+  test('empty collection → create, carrying the FULL incoming entry (incl. notes)', () => {
+    // Mirror of the increment "notes dropped" test: the create path must pass
+    // the incoming entry through intact. notes is included so an exact toEqual
+    // would catch a regression that stripped or altered any field on create.
+    const incoming = newEntry({ quantity: 2, notes: 'signed by artist' });
     const outcome = resolveAddition([], incoming);
     expect(outcome).toEqual({ kind: 'create', entry: incoming });
   });
@@ -77,14 +80,20 @@ describe('resolveAddition', () => {
 
   test('distinct finish (same card + condition) → create', () => {
     const existing = storedEntry({ id: 'stack-1', finish: 'normal' });
-    const outcome = resolveAddition([existing], newEntry({ finish: 'foil' }));
-    expect(outcome.kind).toBe('create');
+    const incoming = newEntry({ finish: 'foil' });
+    expect(resolveAddition([existing], incoming)).toEqual({
+      kind: 'create',
+      entry: incoming,
+    });
   });
 
   test('distinct condition (same card + finish) → create', () => {
     const existing = storedEntry({ id: 'stack-1', condition: 'NM' });
-    const outcome = resolveAddition([existing], newEntry({ condition: 'LP' }));
-    expect(outcome.kind).toBe('create');
+    const incoming = newEntry({ condition: 'LP' });
+    expect(resolveAddition([existing], incoming)).toEqual({
+      kind: 'create',
+      entry: incoming,
+    });
   });
 
   test('enchanted row (different cardId) never merges with the normal row', () => {
