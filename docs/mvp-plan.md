@@ -206,16 +206,18 @@
     `normalized_name`-index prefilter is a future optimization that matters at
     **D1** (real-time scanning).
 - **C2 scan→confirm→add-to-collection slice + browse is complete**
-  (`feature/scan-to-collection-slice`, PR → `development`): the first end-to-end
+  (`feature/scan-to-collection-slice`, PR #25 → `development`): the first end-to-end
   runnable product — navigation, a Zustand store, the three screens, and the real
   composition root, wired with `StubCardRecognizer.forCard(demoCard)` + the real
   catalog + real persistence. Relaunch lands on the persisted Collection list;
   scan (stub) → confirm (finish/condition pickers from `FINISHES`/`CONDITIONS`,
   quantity) → save via `CollectionRepository.add` (merge-on-insert) → the entry
   appears in the list and survives restart. The temporary B3 "Test DB" button +
-  inline composition root are removed. Full local gate green (24 suites / 206
+  inline composition root are removed. Full local gate green (24 suites / 209
   tests; TDD red→green for the store; RNTL render/interaction tests for all three
-  screens + the App smoke through the loading gate). What landed:
+  screens + the App smoke through the loading gate). **On-sim acceptance PASSED on
+  iOS (iPhone 17) + Android (Pixel_9) on 2026-06-18** (see the dedicated bullet
+  below). What landed:
   - **State = Zustand** (forcing PR; ask-first cleared). A **vanilla store**
     (`@state/collectionStore`, `createCollectionStore(repo)`) over the
     `CollectionRepository` **interface** — never SQLite — holding the collection
@@ -224,8 +226,9 @@
   - **Navigation = React Navigation native-stack + `react-native-screens`**
     (native dep; ask-first cleared). Shape: **Collection (initial) → Scan →
     Confirm (modal)**. Android `MainActivity.onCreate(null)` added per the
-    `react-native-screens` requirement; `pod install` autolinks iOS (documented
-    on-sim acceptance, DoD native exception).
+    `react-native-screens` requirement (runtime-verified on a cold Android
+    relaunch); iOS `pod install` (80 pods) + Android Gradle build both succeed and
+    `ios/Podfile.lock` is regenerated + committed.
   - **Injectable composition root** — `@app/compositionRoot.createAppServices()`
     builds the concrete graph; `initialize()` runs the startup sequence
     (`persistence.init()` → `catalog.sync()` → pick demo card → wire the stub
@@ -249,6 +252,18 @@
   - **Deliberately out (clean seams):** real OCR (D1), edit/remove (E1), rich
     first-run/offline/no-match/error UX (E2 — C2 has a minimal gate + no-match
     branch only), search/stats (E3).
+  - **On-sim acceptance — ✅ PASSED on both platforms (2026-06-18):** iOS
+    Simulator (iPhone 17, iOS 26.5) and Android emulator (Pixel*9, API 35).
+    `pod install` (80 pods, `RNScreens` autolinked) + Gradle build both succeed;
+    the app boots past the loading gate (real catalog `sync()` over the network);
+    scan (stub) → Confirm shows a real catalog card (\_Ariel — On Human Legs*,
+    "100% match") with the `FINISHES`/`CONDITIONS` pickers → save via the
+    repository → appears in the list → **survives a cold relaunch** (iOS
+    terminate+relaunch; Android `am force-stop`+relaunch, exercising the
+    `react-native-screens` `onCreate(null)` path with no crash); merge-on-insert
+    increments in place (iOS ×2→×3, single row). Documented with screenshots in
+    PR #25. Closes B2's open "confirm iOS pod autolink when C2 wires the
+    composition root" item.
 - **Next action:** Task **D1** (`feature/ocr-recognition`) — the vision-camera
   OCR frame processor + `OcrCardRecognizer`, swapped in behind `CardRecognizer`
   (the one-line change in `@app/compositionRoot.initialize()`). **Ask-first** on
@@ -308,9 +323,10 @@ treat as the default unless a human overrides:
 - **B2 — ✅ done:** `react-native-config` (^1.6.1) added so bare RN reads an
   optional `CATALOG_API_BASE_URL` override from `.env` (ask-first gate cleared by
   the user). Isolated to `catalogConfig.ts`, mocked in Jest; the canonical URL is
-  a code default. **Open native acceptance:** confirm iOS pod autolink + Android
-  `dotenv.gradle` codegen on a real build and an on-device `sync()` smoke (per the
-  DoD native-config exception) when C2 wires the composition root.
+  a code default. **Native acceptance — ✅ done at C2 (2026-06-18):** iOS pod
+  autolink + Android Gradle build both succeed, and the on-device catalog `sync()`
+  runs for real on first boot (the app clears the loading gate by downloading the
+  live catalog) on the iOS Simulator + Android emulator. See the C2 on-sim bullet.
 - **D1:** The ML Kit vision-camera frame-processor plugin is a heavy **native
   dep → ask-first** before adding.
 - **Secrets:** MVP backend needs no API key; the commented `RECOGNITION_API_KEY`
@@ -549,10 +565,12 @@ doctor` to the README troubleshooting notes.
 - **Depends on:** C1, B3, B2.
 - **Acceptance:** On device/sim you can "scan" (stub), confirm, save, and see it
   in the list across app restarts. State layer tested where non-trivial. — **met
-  (logic/CI):** 24 suites / 206 tests green — the store over the real repo on
+  (logic/CI):** 24 suites / 209 tests green — the store over the real repo on
   `TestSqliteDatabase` (incl. merge-on-insert), RNTL tests for all three screens,
-  and an `App` smoke through the loading gate; no network/native in Jest. The
-  across-restart loop is the documented on-sim acceptance (DoD native exception).
+  and an `App` smoke through the loading gate; no network/native in Jest. **On-sim:
+  ✅ verified on iOS Simulator (iPhone 17) + Android emulator (Pixel_9) on
+  2026-06-18** — full scan→confirm→save→relaunch loop incl. merge-on-insert and
+  the Android `onCreate(null)` cold-relaunch path; screenshots in PR #25.
 - **Size:** **L.** **State-management decision → Zustand (ratified).** Navigation
   → React Navigation native-stack + `react-native-screens` (native-dep ask-first
   cleared). Composition root is injectable; the recognizer is the stub
