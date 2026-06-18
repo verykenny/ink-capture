@@ -166,6 +166,13 @@ treat as the default unless a human overrides:
 - **B3 (from B1) — ✅ done:** the `UNIQUE (card_id, finish, condition)` index is
   created in migration 001 and proven by test — B1's `resolveAddition` >1-stack
   throw is now structurally unreachable in normal operation.
+- **C2 (from B3) — open:** remove the **temporary "Test DB" smoke button** in
+  `src/app/App.tsx` (throwaway scaffolding that verified the op-sqlite binding on
+  device). Revert commit `f27ea39` or delete everything tagged
+  `TODO(C2): remove this temporary debug affordance` (the button, its handler, the
+  inline composition root, and the `debugButton` style). C2 wires the real
+  persistence composition root + collection UI, so this debug affordance retires
+  with it.
 - **B2:** Add `react-native-config` (or similar) so bare RN can read
   `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
   CLAUDE.md before adding.
@@ -364,6 +371,8 @@ doctor` to the README troubleshooting notes.
   (top candidate + finish/condition pickers), write via `CollectionRepository`,
   and a collection list screen that reads it back. Wired with **StubRecognizer +
   real catalog + real persistence**. First end-to-end runnable product.
+  **Also remove B3's temporary "Test DB" smoke button** from `App.tsx` (revert
+  `f27ea39` / the `TODO(C2)` markers) — see the carry-over list above.
 - **Out:** Real OCR (next milestone), edit/remove, stats.
 - **Depends on:** C1, B3, B2.
 - **Acceptance:** On device/sim you can "scan" (stub), confirm, save, and see it
