@@ -70,16 +70,42 @@
   - **Optional follow-up (still open, non-gating):** native iOS/Android build
     verification in CI — unblocked by the closed A1 boot gate; A3's PR shipped
     without it, so do it as a fast-follow `chore/`.
-- **Next action:** Task **B1** (`feature/domain-models`) — `Card`,
-  `CollectionEntry`, the `finish`/`condition` value sets, and the pure
-  collection-entry identity/merge rule + validation, narrowing the A3
-  placeholders to the settled model (and reconciling the stale README data
-  model). See §2 / the B1 task.
+- **B1 domain models + rules is implemented** (`feature/domain-models`, PR #17 →
+  `development`, opened 2026-06-17 — pending review/merge): the A3 placeholders
+  are narrowed to the settled model and the collection-entry identity/merge rule
+  and validation are encoded, all **pure and framework-free** (no `react-native*`
+  imports; the suite runs with no device). `Finish`/`Condition` are now
+  `as const` tuples → derived unions + `isFinish`/`isCondition` guards, with
+  `finish = normal | foil` and conditions `NM|LP|MP|HP|DMG`; `Card` is expanded
+  (`version?`, `rarity`, `availableFinishes: readonly Finish[]`, `imageUrl?`, all
+  `readonly`); `CollectionEntry.addedAt`/`updatedAt` are settled as ISO 8601 UTC
+  strings (branded type deferred); and `NewCollectionEntry`/`CollectionEntryKey`
+  were relocated into `@domain` (re-exported byte-compatibly from
+  `@services/persistence`) so the domain depends only inward. `resolveAddition`
+  returns a pure `AddOutcome` intent (increment carries `targetId` plus the
+  summed quantity only; create carries the incoming entry; throws on more than
+  one stack per identity), and `validateNewCollectionEntry` /
+  `assertValidNewCollectionEntry` validate the untrusted loose shape. The README
+  data model is reconciled in the same PR. Full local gate green (6 suites / 59
+  tests; TDD red→green for the value-set, merge, and validation chunks).
+  - **B3 hand-off (don't forget):** the merge rule assumes at most one stack per
+    `(cardId, finish, condition)` and throws otherwise — B3 must enforce a
+    `UNIQUE` index on those columns so that path is impossible.
+  - **Test infra:** `jest.config.js` gained a scoped `testPathIgnorePatterns` for
+    `__tests__/fixtures/` so the hand-authored fixtures helper isn't run as an
+    empty suite; no `babel.config.js` / `tsconfig.json` alias changes.
+- **Next action:** Task **B3** (`feature/persistence-sqlite`) — SQLite schema,
+  migrations, and `CollectionRepository` (CRUD + merge-on-insert via B1's
+  `resolveAddition`); forces the SQLite-library decision (recommended
+  `op-sqlite`) and must add the `UNIQUE (cardId, finish, condition)` index the
+  merge rule relies on. B2 (catalog) is also unblocked by B1, but do B3 before
+  B2's persistence half (per §2). See §2 / the B3 task.
 
 **Settled decisions (don't re-litigate):**
 
 - **Card finish model** (human-approved 2026-06-16): `finish = normal | foil`;
-  enchanted and special/promo printings are distinct `Card` rows. Apply in B1.
+  enchanted and special/promo printings are distinct `Card` rows. **Applied in
+  B1 (PR #17).**
 
 **Recommendations not yet ratified** — each gets confirmed at its forcing PR, so
 treat as the default unless a human overrides:
@@ -90,17 +116,18 @@ treat as the default unless a human overrides:
 
 **Carry-over actions for later PRs (easy to forget):**
 
-- **B1:** `README.md`'s draft data model is **currently stale** — it still shows
-  `finish = normal | foil | enchanted | special` and lists `enchanted` under both
-  `finish` and `rarity`. Reconcile it to the settled model (above) alongside the
-  code in the B1 PR.
-- **B1 (from A3 review):** A3 left two placeholders B1 must close. (1) `Finish`
-  and `Condition` are currently aliased to `string` in
-  `src/domain/models/attributes.ts` — a type-safety hole (the persistence
-  contract accepts any string) until B1 narrows them to `'normal' | 'foil'` and
-  the settled condition grades. (2) `CollectionEntry.addedAt`/`updatedAt` are
-  `string` ISO with an in-file "B1 may switch to `Date`" note — B1 must settle
-  the timestamp representation since `CollectionRepository` references it.
+- **B1 — ✅ done (PR #17):** `README.md`'s draft data model has been reconciled to
+  the settled finish model (`finish = normal | foil`; `enchanted` kept under
+  `rarity` only, with a note that enchanted/special are distinct `Card` rows),
+  alongside the code in the same PR.
+- **B1 (from A3 review) — ✅ done (PR #17):** both A3 placeholders are closed.
+  `Finish`/`Condition` are narrowed from `string` to `as const`-derived unions
+  plus `isFinish`/`isCondition` guards, and `CollectionEntry.addedAt`/`updatedAt`
+  are settled as ISO 8601 UTC `string`s (the in-file "may switch to `Date`" note
+  is gone; the branded `IsoTimestamp` type is explicitly deferred).
+- **B3 (from B1) — open:** enforce a `UNIQUE` index on
+  `(cardId, finish, condition)` in the SQLite schema — B1's `resolveAddition`
+  assumes at most one stack per identity and throws otherwise.
 - **B2:** Add `react-native-config` (or similar) so bare RN can read
   `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
   CLAUDE.md before adding.
@@ -242,7 +269,8 @@ doctor` to the README troubleshooting notes.
 - **Out:** Persistence, UI, `Deck` (stretch).
 - **Depends on:** A3.
 - **Acceptance:** Unit tests cover merge/identity and the enchanted-vs-foil
-  decision. No RN imports.
+  decision. No RN imports. — ✅ **Met locally (6 suites / 59 tests, full gate
+  green); PR #17 → `development` open, pending merge.**
 - **Size:** **S–M.** **Model decision (settled):** `finish = normal | foil`;
   enchanted and special/promo printings are distinct `Card` rows (own collector
   number/rarity), not finishes. Update the `README.md` data model in this PR too.
@@ -381,7 +409,7 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 | State management | C2        | **Zustand**                                             |
 | OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device) |
 
-The **enchanted-vs-foil** modeling for B1 is now settled (`finish = normal |
-foil`; enchanted/special are distinct `Card` rows). One item still needs a human
-confirm before its PR: the **ML Kit frame-processor native dep** (D1, ask-first
-per CLAUDE.md).
+The **enchanted-vs-foil** modeling for B1 is settled (`finish = normal | foil`;
+enchanted/special are distinct `Card` rows) **and implemented in B1 (PR #17)**.
+One item still needs a human confirm before its PR: the **ML Kit
+frame-processor native dep** (D1, ask-first per CLAUDE.md).

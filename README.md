@@ -26,7 +26,7 @@ The minimum viable product is a single, tight loop:
 2. **Identify** the card (which set, which card, collector number).
 3. **Add** it to a **local collection**, recording:
    - **Quantity** owned
-   - **Finish** (e.g. normal vs. foil/enchanted/special finish)
+   - **Finish** (normal vs. foil)
    - **Condition** (e.g. NM / LP / MP / HP / DMG)
 
 Everything in the MVP works against on-device storage. Account sync, sharing,
@@ -200,31 +200,31 @@ ink-capture/
 
 A card as defined by the upstream catalog. Read-only reference data.
 
-| Field               | Type     | Notes                                             |
-| ------------------- | -------- | ------------------------------------------------- |
-| `id`                | string   | Stable catalog identifier                         |
-| `name`              | string   | Card name                                         |
-| `version`           | string?  | Subtitle / version (e.g. "Brave Little Tailor")   |
-| `setCode`           | string   | Set identifier                                    |
-| `collectorNumber`   | string   | Number within the set                             |
-| `rarity`            | string   | e.g. Common … Legendary / Enchanted               |
-| `availableFinishes` | string[] | Finishes the card can exist in                    |
-| `imageUrl`          | string?  | Remote image URL (fetched at runtime, not stored) |
+| Field               | Type     | Notes                                                                                                                                          |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | string   | Stable catalog identifier                                                                                                                      |
+| `name`              | string   | Card name                                                                                                                                      |
+| `version`           | string?  | Subtitle / version (e.g. "Brave Little Tailor")                                                                                                |
+| `setCode`           | string   | Set identifier                                                                                                                                 |
+| `collectorNumber`   | string   | Number within the set                                                                                                                          |
+| `rarity`            | string   | e.g. Common … Legendary / Enchanted. Enchanted & special printings are distinct `Card` rows (own collector number + rarity), **not** finishes. |
+| `availableFinishes` | Finish[] | Finishes this card exists in (closed set: `normal` \| `foil`)                                                                                  |
+| `imageUrl`          | string?  | Remote image URL (fetched at runtime, not stored)                                                                                              |
 
 ### CollectionEntry (an owned copy)
 
 A user-owned record pointing at a `Card`.
 
-| Field       | Type     | Notes                                               |
-| ----------- | -------- | --------------------------------------------------- |
-| `id`        | string   | Local identifier                                    |
-| `cardId`    | string   | References `Card.id`                                |
-| `quantity`  | integer  | Number owned of this card+finish+condition combo    |
-| `finish`    | enum     | e.g. `normal` \| `foil` \| `enchanted` \| `special` |
-| `condition` | enum     | e.g. `NM` \| `LP` \| `MP` \| `HP` \| `DMG`          |
-| `notes`     | string?  | Free-form user notes                                |
-| `addedAt`   | datetime | When the entry was created                          |
-| `updatedAt` | datetime | Last modified                                       |
+| Field       | Type    | Notes                                                              |
+| ----------- | ------- | ------------------------------------------------------------------ |
+| `id`        | string  | Local identifier                                                   |
+| `cardId`    | string  | References `Card.id`                                               |
+| `quantity`  | integer | Positive integer; number owned of this card+finish+condition combo |
+| `finish`    | enum    | `normal` \| `foil`                                                 |
+| `condition` | enum    | `NM` \| `LP` \| `MP` \| `HP` \| `DMG`                              |
+| `notes`     | string? | Free-form user notes                                               |
+| `addedAt`   | string  | ISO 8601 UTC timestamp (when the entry was created)                |
+| `updatedAt` | string  | ISO 8601 UTC timestamp (last modified)                             |
 
 ### Deck (optional — stretch)
 

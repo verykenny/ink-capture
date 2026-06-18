@@ -1,16 +1,9 @@
-import type { CollectionEntry } from '@domain';
+import type { CollectionEntry, NewCollectionEntry } from '@domain';
 
-/** A new entry before persisted id/timestamps. */
-export type NewCollectionEntry = Omit<
-  CollectionEntry,
-  'id' | 'addedAt' | 'updatedAt'
->;
-
-/** The merge identity (card + finish + condition). */
-export type CollectionEntryKey = Pick<
-  CollectionEntry,
-  'cardId' | 'finish' | 'condition'
->;
+// NewCollectionEntry & CollectionEntryKey now live in the domain layer (the
+// merge identity belongs to @domain); re-export them so this module stays the
+// canonical import site for persistence consumers.
+export type { NewCollectionEntry, CollectionEntryKey } from '@domain';
 
 /** DB lifecycle: open + migrate. Called once at the composition root (B3 impl). */
 export interface PersistenceService {
