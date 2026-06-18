@@ -100,7 +100,8 @@
     `__tests__/fixtures/` so the hand-authored fixtures helper isn't run as an
     empty suite; no `babel.config.js` / `tsconfig.json` alias changes.
 - **B3 persistence (SQLite schema + collection repository) is complete**
-  (`feature/persistence-sqlite` → `development`): the `CollectionRepository` and
+  (`feature/persistence-sqlite`, PR #19 → `development`, merged 2026-06-17): the
+  `CollectionRepository` and
   `PersistenceService` contracts get a SQLite body behind a thin `SqliteDatabase`
   driver seam (`execute` + `close` + `withTransaction`), so the exact production
   SQL runs against op-sqlite on a device (`OpSqliteDatabase`, the only op-sqlite
@@ -126,8 +127,14 @@
     so CHECK/UNIQUE violations silently stop throwing (a non-deterministic suite).
     node:sqlite is compiled into Node → no dlopen, deterministic, zero dep.
     **B2 must use the same `TestSqliteDatabase` helper** (`__tests__/persistence/`)
-    for its persistence specs. This bumped `engines.node` to `>=22.5.0` and added
-    `@types/node` + `"node"` to the tsconfig `types`.
+    for its persistence specs. This added `@types/node` + `"node"` to the tsconfig
+    `types` and set `engines.node` to `>=22.5.0` (when `node:sqlite` landed).
+    - **Toolchain bump (don't miss it):** the pinned dev/CI Node went **20 → 26**
+      (`.nvmrc` + CI, commit `378db55`) — the version B3 is actually developed and
+      tested against. **Existing contributors must `nvm install` the new `.nvmrc`**
+      or `node:sqlite`-backed tests won't run. (`node:sqlite` is a recent built-in;
+      may emit an `ExperimentalWarning` on some Node lines — low risk, suite green
+      on 26.)
   - **B2 hand-off:** the catalog cache lives in `catalog_cards`
     (id, name, normalized_name, version, set_code, collector_number, rarity,
     available_finishes as a JSON array, image_url) and `catalog_meta(key, value)`
@@ -173,6 +180,11 @@ treat as the default unless a human overrides:
   inline composition root, and the `debugButton` style). C2 wires the real
   persistence composition root + collection UI, so this debug affordance retires
   with it.
+- **E1 (from B3 review) — open:** `CollectionRepository.update()` can change
+  `finish`/`condition`, which may move a row onto another stack's identity and hit
+  the `UNIQUE (card_id, finish, condition)` index — it **throws rather than
+  merging** today. Acceptable now (integrity is protected), but E1 (edit/remove)
+  must handle an edit-into-existing-stack as a merge, not an error.
 - **B2:** Add `react-native-config` (or similar) so bare RN can read
   `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
   CLAUDE.md before adding.
