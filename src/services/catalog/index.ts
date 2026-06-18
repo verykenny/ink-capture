@@ -17,3 +17,4 @@ export * from './HttpJsonClient';
 export * from './lorcanaTypes';
 export { mapLorcanaCard } from './mapLorcanaCard';
 export { normalizeCardName } from './normalizeName';
+export { cardMatchKey } from './cardMatchKey';

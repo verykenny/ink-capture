@@ -185,13 +185,19 @@
     matters.
 - **✅ Milestone B (Domain & Data) is complete** — B1 + B2 + B3 all merged. The
   domain models/rules, the SQLite persistence + repository, and the catalog
-  sync-and-cache are all in place and tested. **C1 is fully unblocked** (it has a
-  real cached catalog with exact + name-index lookups and the shared
-  `normalizeCardName`).
-- **Next action:** Task **C1** (`feature/recognition-matching`) — pure matching
-  (exact collector-number hit → fuzzy normalized-name fallback) over B2's cached
-  catalog + a `StubCardRecognizer`. Reuse B2's `normalizeCardName` on the query
-  side. Unblocked by B1 + B2. See §2 / the C1 task.
+  sync-and-cache are all in place and tested.
+- **✅ C1 implemented (`feature/recognition-matching`)** — the pure matching
+  engine (exact collector-number tier → fuzzy normalized-name fallback, ranked
+  candidates + confidence), the `createCardMatcher` seam over
+  `CatalogReader`, the shared `cardMatchKey` (catalogCache delegates to it), and
+  `StubCardRecognizer` all landed and tested (fixtures only). See the C1 task
+  below for the full breakdown. **C2 is now unblocked.**
+- **Next action:** Task **C2** (`feature/scan-to-collection-slice`) — the
+  scan→confirm→save vertical slice + browse, wired with
+  `StubCardRecognizer.forCard(...)` + the real catalog + real persistence. Also
+  removes B3's temporary "Test DB" smoke button from `App.tsx`. Forces the
+  state-management decision (recommend Zustand). Unblocked by C1 + B2 + B3. See
+  §2 / the C2 task.
 
 **Settled decisions (don't re-litigate):**
 
@@ -440,6 +446,40 @@ doctor` to the README troubleshooting notes.
   no-match) — core "recognition matching" logic the DoD names explicitly.
 - **Size:** **M.** Recommend a small well-tested fuzzy lib or hand-rolled
   Levenshtein on normalized names.
+- **✅ Implemented (`feature/recognition-matching`):** delivered as planned and
+  fully tested (fixtures only — no bulk `allCards.json`, no card images). What
+  landed:
+  - **Pure ranking core in `@domain`** (no `@services` import): hand-rolled
+    `levenshtein` + `similarity` (`src/domain/matching/levenshtein.ts`) and
+    `matchEntries` (`src/domain/matching/cardMatching.ts`). Two-tier — exact
+    `collectorNumber` filter (name disambiguates colliding sets; **not**
+    thresholded so a low-confidence number hit is still surfaced) → fuzzy
+    normalized-name fallback (similarity, drop `< 0.5`, sort desc, cap top `5`,
+    tunable via `MatchOptions`). A non-empty exact tier wins outright (fallback,
+    not merged). DoD cases covered: exact hit, fuzzy near-miss, ambiguous
+    near-tie (best-first stable), collectorNumber+name disambiguation, no-match.
+  - **Matcher seam for C2/D1 — `createCardMatcher(reader, options?)`**
+    (`src/services/vision/cardMatcher.ts`): bridges a narrow
+    `CatalogReader = Pick<CatalogService, 'getAllCards'>` (the real
+    `CatalogService` satisfies it structurally) to the pure core, returning a
+    `RecognitionResult` with `source` echoed. **D1's `OcrCardRecognizer` calls
+    `matcher.match(source)`** after OCR and returns its result — no interface
+    change.
+  - **Shared `cardMatchKey(card)`** (`src/services/catalog/cardMatchKey.ts`) =
+    normalized `name`+`version`; B2's `catalogCache.normalizedNameFor` now
+    delegates to it, so the cached `normalized_name` column and the matcher key
+    are the identical string by construction — zero drift (proven by a
+    `"elsa snow queen"` query resolving end-to-end).
+  - **`StubCardRecognizer`** (`src/services/vision/StubCardRecognizer.ts`)
+    implements `CardRecognizer`, ignores the image, resolves a fixed
+    `RecognitionResult`; **`StubCardRecognizer.forCard(card, confidence = 1)`**
+    is the one-liner **C2** wires into the scan→confirm→save slice, and D1 keeps
+    it behind a flag for tests.
+  - **Deferred (intentional MVP simplifications):** the indexed
+    `findByCollectorNumber` (setCode-aware path) waits for a future setCode
+    recognition signal — the frozen `RecognitionSource` carries no setCode;
+    merging the exact + fuzzy tiers and memoizing `getAllCards()` per `match()`
+    are later refinements.
 
 #### C2. Scan → confirm → add-to-collection slice + browse — `feature/scan-to-collection-slice`
 
