@@ -12,7 +12,11 @@
  */
 
 import { createCatalogService } from '@services/catalog/LorcanaCatalogService';
-import { countCards } from '@services/catalog/catalogCache';
+import {
+  CATALOG_META_KEYS,
+  countCards,
+  readCatalogVersion,
+} from '@services/catalog/catalogCache';
 import type { CatalogService } from '@services/catalog/CatalogService';
 import type { HttpJsonClient } from '@services/catalog/HttpJsonClient';
 import { runMigrations } from '@services/persistence/migrations';
@@ -105,6 +109,16 @@ describe('LorcanaCatalogService', () => {
       expect(await countCards(db)).toBe(RAW_CARDS.length);
       // metadata polled before allCards downloaded
       expect(urls).toEqual([`${BASE}/metadata.json`, `${BASE}/allCards.json`]);
+      // the service threads metadata.formatVersion + now() into the cache
+      expect(await readCatalogVersion(db)).toEqual({
+        generatedOn: LORCANA_METADATA.generatedOn,
+        formatVersion: LORCANA_METADATA.formatVersion,
+      });
+      const synced = await db.execute(
+        'SELECT value FROM catalog_meta WHERE key = ?',
+        [CATALOG_META_KEYS.syncedAt],
+      );
+      expect(synced.rows[0].value).toBe(NOW);
     });
   });
 
