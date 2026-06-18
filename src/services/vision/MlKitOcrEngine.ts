@@ -49,7 +49,13 @@ const toOcrBlock = (block: TextBlock): OcrTextBlock => {
     : { text: block.text, lines };
 };
 
-const toOcrResult = (result: TextRecognitionResult): OcrResult => ({
+/**
+ * The pure ML Kit → OcrResult mapping (the seam's actual logic: left→x, top→y,
+ * size/structure pass-through, frame omitted when absent). Exported so it is
+ * unit-testable without the native module — `createMlKitOcrEngine` is just this
+ * mapping over a real `TextRecognition.recognize` call.
+ */
+export const mapMlKitResult = (result: TextRecognitionResult): OcrResult => ({
   text: result.text,
   blocks: result.blocks.map(toOcrBlock),
 });
@@ -61,6 +67,6 @@ export const createMlKitOcrEngine = (): OcrEngine => ({
       imageUri,
       TextRecognitionScript.LATIN,
     );
-    return toOcrResult(result);
+    return mapMlKitResult(result);
   },
 });

@@ -14,7 +14,9 @@
  * native ML Kit lib, and it normalizes ML Kit's `{ left, top, width, height }`
  * frames into the `{ x, y, width, height }` shape used here.
  *
- * D1-internal: `OcrEngine`/`OcrResult` are not part of the A3 service contracts.
+ * D1-owned: `OcrEngine`/`OcrResult` are exported (via the `@services` barrel)
+ * for the recognizer and its tests, but they are NOT an A3 service contract —
+ * treat them as a D1-local seam, not a stable cross-milestone API.
  *
  * @format
  */
