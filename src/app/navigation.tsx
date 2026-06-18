@@ -14,29 +14,21 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, Text, View } from 'react-native';
-import type { RecognitionResult } from '@domain';
+import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
+import type { RootStackParamList } from '@ui/navigationTypes';
 
-/** Route table for the root native-stack. */
-export type RootStackParamList = {
-  Collection: undefined;
-  Scan: undefined;
-  Confirm: { result: RecognitionResult };
-};
+export type { RootStackParamList } from '@ui/navigationTypes';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Placeholder screens — replaced by the real @ui screens in later C2 commits
-// (collection list → scan → confirm). They keep this shell independently
-// buildable and let the app boot end-to-end before the screens exist.
+// Placeholder screens — replaced by the real @ui screens in the following C2
+// commits (scan → confirm). They keep this shell buildable until each lands.
 const Placeholder = ({ label }: { label: string }): React.JSX.Element => (
   <View style={styles.placeholder}>
     <Text>{label}</Text>
   </View>
 );
 
-const CollectionPlaceholder = (): React.JSX.Element => (
-  <Placeholder label="Collection" />
-);
 const ScanPlaceholder = (): React.JSX.Element => <Placeholder label="Scan" />;
 const ConfirmPlaceholder = (): React.JSX.Element => (
   <Placeholder label="Confirm" />
@@ -47,7 +39,7 @@ export function RootNavigator(): React.JSX.Element {
     <Stack.Navigator initialRouteName="Collection">
       <Stack.Screen
         name="Collection"
-        component={CollectionPlaceholder}
+        component={CollectionListScreen}
         options={{ title: 'My Collection' }}
       />
       <Stack.Screen

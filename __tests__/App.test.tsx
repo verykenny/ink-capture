@@ -42,5 +42,6 @@ const makeFakeServices = (): AppServices => {
 
 test('boots through the loading gate to the Collection screen', async () => {
   render(<App services={makeFakeServices()} />);
-  expect(await screen.findByText('Collection')).toBeOnTheScreen();
+  // The injected repository is empty, so the Collection screen shows its empty state.
+  expect(await screen.findByText('No cards yet.')).toBeOnTheScreen();
 });
