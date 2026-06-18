@@ -107,6 +107,19 @@ test('Capture takes a still, recognizes it, navigates to Confirm, and deletes th
   await waitFor(() => expect(unlink).toHaveBeenCalledWith(CAPTURE_PATH));
 });
 
+test('ignores a second Capture while the first is still in flight', async () => {
+  const recognize = jest.fn(async () => RESULT);
+  renderScreen(recognize);
+
+  const button = screen.getByText('Capture');
+  fireEvent.press(button);
+  fireEvent.press(button); // rapid double-tap before the first capture resolves
+
+  await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
+  expect(mockTakePhoto).toHaveBeenCalledTimes(1);
+  expect(recognize).toHaveBeenCalledTimes(1);
+});
+
 test('still deletes the captured file even when recognition rejects', async () => {
   const recognize = jest.fn(async () => {
     throw new Error('ocr failed');

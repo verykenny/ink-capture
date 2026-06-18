@@ -42,6 +42,7 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const cameraRef = useRef<Camera>(null);
+  const capturing = useRef(false);
   const [didRequest, setDidRequest] = useState(false);
 
   useEffect(() => {
@@ -62,19 +63,27 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
 
   const onCapture = useCallback(async () => {
     const camera = cameraRef.current;
-    if (!camera) {
+    // Ignore taps with no camera and re-entrant taps while a capture is in
+    // flight (a rapid double-tap would otherwise push Confirm twice).
+    if (!camera || capturing.current) {
       return;
     }
-    const photo = await camera.takePhoto();
+    capturing.current = true;
+    let path: string | undefined;
     try {
+      const photo = await camera.takePhoto();
+      path = photo.path;
       const result = await recognizer.recognize({
         uri: `file://${photo.path}`,
       });
       navigation.navigate('Confirm', { result });
     } finally {
-      // Best-effort: delete the captured still so card photos don't linger on
-      // disk. Cleanup failure must not mask the recognition result.
-      await unlink(photo.path).catch(() => undefined);
+      if (path !== undefined) {
+        // Best-effort: delete the captured still so card photos don't linger on
+        // disk. Cleanup failure must not mask the recognition result.
+        await unlink(path).catch(() => undefined);
+      }
+      capturing.current = false;
     }
   }, [recognizer, navigation]);
 
