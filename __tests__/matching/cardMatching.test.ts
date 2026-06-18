@@ -81,6 +81,17 @@ describe('matchEntries — exact collector-number tier', () => {
     expect(result[0].card.id).toBe(CARD_ELSA.id);
     expect(result[0].confidence).toBeLessThan(0.5);
   });
+
+  test('a name key that normalized to empty is treated as absent (1/matchCount, not similarity 0)', () => {
+    // Punctuation-only OCR (e.g. "!!!") normalizes to '' — no usable name signal,
+    // so a number-only collision must split confidence, not score every hit at 0.
+    const result = matchEntries({ collectorNumber: '042', nameKey: '' }, [
+      ENTRY_ELSA,
+      ENTRY_STITCH, // both '042'
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result.every(candidate => candidate.confidence === 0.5)).toBe(true);
+  });
 });
 
 describe('matchEntries — no match', () => {

@@ -67,6 +67,17 @@ describe('createCardMatcher', () => {
     expect(result.source).toEqual({});
   });
 
+  test('a punctuation-only name (normalizes to empty) is treated as a number-only query', async () => {
+    const matcher = createCardMatcher(reader);
+    // '!!!' is truthy but normalizes to '' — no name signal. '042' collides
+    // across sets (ELSA + STITCH), so confidence splits 1/matchCount, not 0.
+    const result = await matcher.match({ collectorNumber: '042', name: '!!!' });
+    expect(result.candidates).toHaveLength(2);
+    expect(
+      result.candidates.every(candidate => candidate.confidence === 0.5),
+    ).toBe(true);
+  });
+
   test('options (threshold/limit) flow through to the ranking core', async () => {
     const strict = createCardMatcher(reader, { threshold: 0.99 });
     // "Esla Snow Quene" (~0.73 similarity) is below 0.99 → dropped.

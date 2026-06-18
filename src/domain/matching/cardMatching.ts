@@ -91,7 +91,10 @@ export const matchEntries = (
   entries: readonly CatalogMatchEntry[],
   options: MatchOptions = {},
 ): RecognitionCandidate[] => {
-  const { collectorNumber, nameKey } = query;
+  const { collectorNumber } = query;
+  // A name that normalized to empty (e.g. punctuation-only OCR) carries no
+  // signal — treat it exactly like an absent name in both tiers.
+  const nameKey = query.nameKey || undefined;
 
   if (collectorNumber !== undefined) {
     const exact = entries.filter(
