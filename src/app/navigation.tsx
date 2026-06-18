@@ -6,33 +6,22 @@
  * persistence-across-restart; the Scan CTA pushes Scan, and Confirm is presented
  * modally carrying the RecognitionResult the Scan screen produced.
  *
- * `RootStackParamList` is C2-internal — it is NOT an A3 service contract; it only
- * types the routes and their params for `navigation`/`route` across the screens.
+ * The route table (`RootStackParamList`) lives in `@ui/navigationTypes` so the
+ * screens can type their props without importing from `@app`; it is re-exported
+ * here for convenience. C2-internal — not an A3 service contract.
  *
  * @format
  */
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StyleSheet, Text, View } from 'react-native';
 import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
 import { ScanScreen } from '@ui/scan/ScanScreen';
+import { ConfirmSheet } from '@ui/scan/ConfirmSheet';
 import type { RootStackParamList } from '@ui/navigationTypes';
 
 export type { RootStackParamList } from '@ui/navigationTypes';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-// Placeholder screen — replaced by the real ConfirmSheet in the next C2 commit.
-// Keeps this shell buildable until it lands.
-const Placeholder = ({ label }: { label: string }): React.JSX.Element => (
-  <View style={styles.placeholder}>
-    <Text>{label}</Text>
-  </View>
-);
-
-const ConfirmPlaceholder = (): React.JSX.Element => (
-  <Placeholder label="Confirm" />
-);
 
 export function RootNavigator(): React.JSX.Element {
   return (
@@ -49,17 +38,9 @@ export function RootNavigator(): React.JSX.Element {
       />
       <Stack.Screen
         name="Confirm"
-        component={ConfirmPlaceholder}
+        component={ConfirmSheet}
         options={{ presentation: 'modal', title: 'Confirm Card' }}
       />
     </Stack.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  placeholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
