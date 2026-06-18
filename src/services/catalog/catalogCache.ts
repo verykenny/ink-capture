@@ -20,7 +20,7 @@ import {
   withTransaction,
   type SqliteDatabase,
 } from '@services/persistence/sqlite/SqliteDatabase';
-import { normalizeCardName } from './normalizeName';
+import { cardMatchKey } from './cardMatchKey';
 
 const CARDS_TABLE = 'catalog_cards';
 const META_TABLE = 'catalog_meta';
@@ -48,9 +48,12 @@ export interface CachedCatalogVersion {
   formatVersion?: string;
 }
 
-/** Derive the persistence-only normalized name from a Card (name + version). */
-const normalizedNameFor = (card: Card): string =>
-  normalizeCardName(card.version ? `${card.name} ${card.version}` : card.name);
+/**
+ * Derive the persistence-only normalized name from a Card. Delegates to the
+ * shared `cardMatchKey` so this cached column and C1's matcher key are, by
+ * construction, the identical string — no drift between the two sides.
+ */
+const normalizedNameFor = (card: Card): string => cardMatchKey(card);
 
 /** Encode the closed finish set as JSON text for storage. */
 const encodeFinishes = (finishes: readonly Finish[]): string =>
