@@ -19,10 +19,10 @@
   Husky pre-commit hook runs `lint-staged` and auto-installs via the `prepare`
   script on a fresh `npm install`; a GitHub Actions workflow gates PRs into
   `development` on the four checks plus a JS bundle check; and a `Brewfile` +
-  `scripts/setup.sh` give a one-command machine bootstrap. Native iOS/Android CI
-  build verification is **deferred but now unblocked** (the A1 boot gate was
-  closed 2026-06-17, below) — the bundle check proves only that the JS module
-  graph resolves.
+  `scripts/setup.sh` give a one-command machine bootstrap. **Native iOS/Android CI
+  build verification landed in `chore/native-ci`** (`.github/workflows/native-build.yml`):
+  a path-filtered macOS iOS-simulator build + Ubuntu Android `assembleDebug`,
+  complementing the JS bundle check (which only proves the module graph resolves).
   - Two hardening fixes made in passing: `@react-native/jest-preset` was
     referenced by `jest.config.js` but missing from `package.json` (it is only
     an _optional_ peer dep of `react-native`, so `npm ci` never installed it) —
@@ -276,12 +276,11 @@
 node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
   not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
   match it. (First flagged at B3; C2 widened the affected suites.)
-- **Next action:** **Merge D1** (`feature/ocr-recognition`, PR open into
-  `development`) — still-image ML Kit OCR + `OcrCardRecognizer`, swapped in at
-  `createAppServices`; stub preserved behind `USE_STUB_RECOGNIZER`; iOS bumped to
-  15.5; iOS + Android build clean locally. The on-device accuracy spike **passed
-  10/10 (100%)** with the height-based parser. After merge: `chore/native-ci`,
-  then D2 (confidence thresholds / multi-frame / manual-search fallback).
+- **Next action:** **D1 is merged into `development`** (PR #27) — the MVP loop is
+  real-OCR end-to-end; the on-device accuracy spike **passed 10/10 (100%)** with
+  the height-based parser. `chore/native-ci` (this PR) adds the iOS + Android CI
+  build gate. Then **D2** (confidence thresholds / multi-frame / manual-search
+  fallback, plus the Mirabel dropped-subtitle edge).
 
 **Settled decisions (don't re-litigate):**
 
@@ -614,8 +613,8 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   `createAppServices`, with `StubCardRecognizer` preserved behind a
   `USE_STUB_RECOGNIZER` flag. The C1 matcher and all A3 contracts are unchanged.
 - **Out (still D2):** confidence thresholds / auto-accept, multi-frame capture,
-  manual-search fallback UX, the live frame processor. **Native CI** is a
-  separate `chore/native-ci` (D1 verifies native builds locally).
+  manual-search fallback UX, the live frame processor. **Native CI** landed
+  separately in `chore/native-ci` (D1 verified native builds locally).
 - **Spike (go/no-go — ✅ GO, 2026-06-18):** Two on-device batches (Android, 10
   real cards spanning characters, songs, actions, items, foils). **ML Kit OCR is
   strong** — it read name + collector number off foil/busy art on all 10 (one "7"
