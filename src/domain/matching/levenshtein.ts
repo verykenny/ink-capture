@@ -12,8 +12,8 @@
 
 /**
  * Edit distance between two strings: the minimum number of single-character
- * insertions, deletions, or substitutions to turn `a` into `b`. Two-row DP, so
- * memory is O(min-irrelevant) — one row of length `b.length + 1`.
+ * insertions, deletions, or substitutions to turn `a` into `b`. Rolling two-row
+ * DP, so memory is O(b.length) — working rows of length `b.length + 1`.
  */
 export const levenshtein = (a: string, b: string): number => {
   if (a === b) {
