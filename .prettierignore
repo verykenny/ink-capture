@@ -1,0 +1,9 @@
+node_modules/
+
+# Generated native projects (managed by Xcode / Gradle, not hand-formatted).
+ios/
+android/
+vendor/
+
+*.lock
+package-lock.json
