@@ -360,6 +360,16 @@ back-camera preview (the iOS Simulator has no camera hardware, so it shows a
 "granted, no device" state — use an Android emulator's virtual camera or a real
 device to see the preview).
 
+**When do I need `pod install`?** Not on every build. The day-to-day loop is just
+`npm start` + `npm run ios` (or `npm run android`); pure JS/TS changes only need
+Metro. CocoaPods has to re-run **only when the native dependency set changes** — a
+fresh clone, a newly added/updated native module, or a `Podfile` edit. `ios/Pods/`
+is git-ignored and regenerated locally from the committed `Podfile.lock`, so after
+pulling a branch that changed native deps you may need to sync it once. On RN 0.86
+`npm run ios` is designed to run the pod step for you (via `bundle exec`, thanks to
+the committed `Gemfile`); if it ever doesn't, see the "not in sync with the
+Podfile.lock" note under Troubleshooting.
+
 ### Troubleshooting
 
 If a build fails or the environment looks off, run the React Native environment
@@ -405,6 +415,14 @@ continues.
 
 ```sh
 export LANG=en_US.UTF-8
+```
+
+**Build fails with "The sandbox is not in sync with the Podfile.lock."** Your
+local `ios/Pods/` is stale after a native-dependency or `Podfile` change (e.g.
+pulling a branch that added a native module). Re-sync the pods once, then rebuild:
+
+```sh
+bundle exec pod install --project-directory=ios   # or: bash scripts/setup.sh
 ```
 
 **App shows a red "Could not connect to development server" screen.** Metro
