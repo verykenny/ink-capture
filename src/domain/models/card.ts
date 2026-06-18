@@ -1,10 +1,20 @@
+import type { Finish } from './attributes';
+
 /**
- * Catalog card (read-only reference). MINIMAL A3 placeholder — identity fields only.
- * B1 expands (rarity, version, availableFinishes, imageUrl) + reconciles the README model.
+ * A catalog card — read-only reference data sourced from the upstream catalog
+ * (LorcanaJSON). All fields are `readonly`: the app never mutates catalog data,
+ * it only caches and reads it. B2's catalog mapper is the only constructor.
  */
 export interface Card {
-  id: string; // stable catalog identifier
-  name: string;
-  setCode: string;
-  collectorNumber: string;
+  readonly id: string; // stable catalog identifier
+  readonly name: string;
+  readonly version?: string; // subtitle, e.g. "Brave Little Tailor"
+  readonly setCode: string;
+  readonly collectorNumber: string;
+  // Includes 'Enchanted' as a RARITY value — enchanted/special printings are
+  // distinct Card rows (own collectorNumber + rarity), never finishes. Exact
+  // vocabulary is a B2 mapping concern, so this stays loosely typed.
+  readonly rarity: string;
+  readonly availableFinishes: readonly Finish[]; // closed set: normal | foil
+  readonly imageUrl?: string; // remote URL; image bytes never stored (IP guardrail)
 }
