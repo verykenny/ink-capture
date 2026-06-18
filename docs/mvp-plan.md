@@ -618,11 +618,20 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 - **Out (still D2):** confidence thresholds / auto-accept, multi-frame capture,
   manual-search fallback UX, the live frame processor. **Native CI** is a
   separate `chore/native-ci` (D1 verifies native builds locally).
-- **Spike (go/no-go — PENDING):** ~15–20 real cards in good lighting, **≥~80%**
-  resolving with the correct card as the **top candidate** (collector-number
-  exact and/or name fuzzy); below the bar → ship a manual-search MVP and treat
-  OCR as a D2 fast-follow. A throwaway harness lives on `spike/ocr-accuracy`
-  (not merged). Findings get recorded here + in the PR once run on-device.
+- **Spike (go/no-go — RUN once; re-validation PENDING):** First on-device batch
+  (10 real cards, Android, 2026-06-18) showed **ML Kit OCR is strong** — it read
+  the card name + collector number off foil/busy art on all 10 (one "7" misread
+  as "T"). Initial resolution was only **5/10**, but every miss was a **parser
+  bug**, not OCR: the old 0.5 height band swept in body/flavor text and the big
+  lore/strength glyphs (OCR'd "O4", "43") printed taller than the name. The
+  parser was reworked (name = tallest alphabetic line; stat glyphs excluded;
+  merged stat digits stripped) and regression-fixtured from the captured
+  `OcrResult`s; the cleaned names resolve all 10 in trace. **Re-running the batch
+  on-device with the fixed parser to confirm ≥~80% is the remaining gate.** Bar:
+  ~15–20 real cards in good lighting, ≥~80% correct top candidate; below it →
+  ship a manual-search MVP and treat OCR as a D2 fast-follow. Throwaway harness
+  (live + batch-from-photos + JSON export) lives on `spike/ocr-accuracy` (not
+  merged); spike photos stay git-ignored (IP).
 - **Native deps + app-size:** `@react-native-ml-kit/text-recognition` (on-device,
   free, **no API key**) + `@dr.pogodin/react-native-fs`. The ML Kit lib pulls
   **all five script recognizers** (Latin + Chinese/Devanagari/Japanese/Korean)
