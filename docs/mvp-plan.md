@@ -206,7 +206,7 @@
     `normalized_name`-index prefilter is a future optimization that matters at
     **D1** (real-time scanning).
 - **C2 scan→confirm→add-to-collection slice + browse is complete**
-  (`feature/scan-to-collection-slice`, PR #25 → `development`): the first end-to-end
+  (`feature/scan-to-collection-slice`, PR #25 → `development`, merged 2026-06-18): the first end-to-end
   runnable product — navigation, a Zustand store, the three screens, and the real
   composition root, wired with `StubCardRecognizer.forCard(demoCard)` + the real
   catalog + real persistence. Relaunch lands on the persisted Collection list;
@@ -264,6 +264,17 @@
     increments in place (iOS ×2→×3, single row). Documented with screenshots in
     PR #25. Closes B2's open "confirm iOS pod autolink when C2 wires the
     composition root" item.
+- **✅ Milestone C (vertical slice with a stub recognizer) is complete** — C1 + C2
+  merged. The app is the first **end-to-end runnable product**: scan (stub) →
+  confirm → save → browse, on the real catalog + real persistence, verified on the
+  iOS Simulator + Android emulator (2026-06-18). Only **D1** (real OCR) remains to
+  make it MVP-grade.
+- **Toolchain reminder (sharpened after the C2 review):** the Jest suite now
+  **hard-requires Node ≥22.5 (pinned 26 via `.nvmrc`)**. On Node 20 the **9
+  persistence/catalog suites fail to _load_** (`No such built-in module:
+node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
+  not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
+  match it. (First flagged at B3; C2 widened the affected suites.)
 - **Next action:** Task **D1** (`feature/ocr-recognition`) — the vision-camera
   OCR frame processor + `OcrCardRecognizer`, swapped in behind `CardRecognizer`
   (the one-line change in `@app/compositionRoot.initialize()`). **Ask-first** on
