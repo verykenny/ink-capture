@@ -139,10 +139,47 @@
     (id, name, normalized_name, version, set_code, collector_number, rarity,
     available_finishes as a JSON array, image_url) and `catalog_meta(key, value)`
     for the version/ETag — **B3 created them empty; B2 owns population + mapping.**
-- **Next action:** Task **B2** (`feature/catalog-service`) — fetch + map
-  LorcanaJSON → `Card`, cache with a version/ETag check, populate B3's
-  `catalog_cards` / `catalog_meta`. Unblocked by B1; B3's persistence half (the
-  cache schema) is now in place. See §2 / the B2 task.
+- **B2 catalog service (sync-and-cache) is complete** (`feature/catalog-service`,
+  PR → `development`, pending review): the `CatalogService` contract gets a body —
+  `LorcanaCatalogService` fetches LorcanaJSON's `metadata.json` + `allCards.json`,
+  maps each card to the settled `Card` model, and caches it into B3's
+  `catalog_cards` / `catalog_meta` (no new migration), exposing
+  `findByCollectorNumber` (indexed exact hit) and `getAllCards` (C1's fuzzy feed).
+  All pure/isolated and fully tested with **no network and no device** (56 new
+  tests; TDD red→green for the mapper, normalization, cache, and service).
+  - **Confirmed catalog source + versioning:** base
+    `https://lorcanajson.org/files/current/en`; fetch the raw `allCards.json`
+    (`{ metadata, sets, cards[] }`), poll the small `metadata.json` and key the
+    cache-skip on **`generatedOn`** (store `formatVersion` too) — re-download only
+    when `generatedOn` changes. The `.zip` + MD5/ETag are out of scope. Verified
+    read-only against a live sample while authoring the fixture (esp. the
+    `foilTypes` values).
+  - **Mapping decisions (ratified):** `Card.id = String(raw.id)`;
+    `availableFinishes` from `foilTypes` (`'normal'` iff it contains `'None'`,
+    `'foil'` iff any other entry; default `['normal']`; order `['normal','foil']`);
+    Enchanted/Special are foil-only **distinct rows**, never a finish.
+    `normalized_name` = `normalizeCardName(name+version)` — a B2-owned shared util
+    **C1 reuses on OCR text** (NFD-strip-diacritics → lowercase → strip
+    punctuation → collapse whitespace → trim).
+  - **Seams:** all network goes through an injectable `HttpJsonClient`
+    (prod impl wraps global `fetch`; tests inject a fake — no live data, ever);
+    persistence is the B3 `SqliteDatabase` seam exercised via `TestSqliteDatabase`
+    (node:sqlite). The refresh is one transaction (DELETE-all + re-INSERT + meta
+    upsert), so a failed/partial download leaves the prior cache intact.
+  - **Ratified `react-native-config` (^1.6.1):** the env dep that lets bare RN
+    surface `CATALOG_API_BASE_URL` (ask-first gate cleared by the user). Used as
+    an _override_ only — `DEFAULT_CATALOG_BASE_URL` is the canonical code default,
+    so the app works with no `.env`. Isolated to `catalogConfig.ts` (mocked in
+    Jest); iOS autolinks, Android adds the `dotenv.gradle` apply line. **Native
+    install/autolink + on-device sync smoke is the documented manual acceptance**
+    (per the DoD native-config exception).
+  - **IP guardrail:** only a tiny hand-authored fixture (3 `cards.ts`-matching
+    rows + 2 numeric-id edge cards, fake `example.test` image URLs) is committed —
+    never the bulk `allCards.json`, never card images.
+- **Next action:** Task **C1** (`feature/recognition-matching`) — pure matching
+  (exact collector-number hit → fuzzy normalized-name fallback) over B2's cached
+  catalog + a `StubCardRecognizer`. Reuse B2's `normalizeCardName` on the query
+  side. Unblocked by B1 + B2. See §2 / the C1 task.
 
 **Settled decisions (don't re-litigate):**
 
@@ -152,6 +189,15 @@
 - **SQLite library → `@op-engineering/op-sqlite`** (ratified at B3, its forcing
   PR). The Jest test engine is Node's built-in **`node:sqlite`** (not a native
   devDependency — see the B3 status entry for why).
+- **Catalog source + versioning → LorcanaJSON** (ratified at B2). Base
+  `https://lorcanajson.org/files/current/en`; cache the raw `allCards.json`,
+  keyed on `metadata.json`'s `generatedOn` (re-download only on change). The
+  LorcanaJSON `id` (stringified) is the `Card.id`; `availableFinishes` derives
+  from `foilTypes`; `normalizeCardName` is the shared name-normalization C1
+  reuses. Lorcast stays a _future secondary_ (images/prices) behind the
+  catalog-service interface.
+- **Env config → `react-native-config`** (^1.6.1, ratified at B2). Surfaces an
+  optional `CATALOG_API_BASE_URL` override; the canonical URL is a code default.
 
 **Recommendations not yet ratified** — each gets confirmed at its forcing PR, so
 treat as the default unless a human overrides:
@@ -185,9 +231,12 @@ treat as the default unless a human overrides:
   the `UNIQUE (card_id, finish, condition)` index — it **throws rather than
   merging** today. Acceptable now (integrity is protected), but E1 (edit/remove)
   must handle an edit-into-existing-stack as a merge, not an error.
-- **B2:** Add `react-native-config` (or similar) so bare RN can read
-  `CATALOG_API_BASE_URL` from `.env`. It's a small **native dep → ask-first** per
-  CLAUDE.md before adding.
+- **B2 — ✅ done:** `react-native-config` (^1.6.1) added so bare RN reads an
+  optional `CATALOG_API_BASE_URL` override from `.env` (ask-first gate cleared by
+  the user). Isolated to `catalogConfig.ts`, mocked in Jest; the canonical URL is
+  a code default. **Open native acceptance:** confirm iOS pod autolink + Android
+  `dotenv.gradle` codegen on a real build and an on-device `sync()` smoke (per the
+  DoD native-config exception) when C2 wires the composition root.
 - **D1:** The ML Kit vision-camera frame-processor plugin is a heavy **native
   dep → ask-first** before adding.
 - **Secrets:** MVP backend needs no API key; the commented `RECOGNITION_API_KEY`
@@ -332,7 +381,7 @@ doctor` to the README troubleshooting notes.
   enchanted and special/promo printings are distinct `Card` rows (own collector
   number/rarity), not finishes. Update the `README.md` data model in this PR too.
 
-#### B2. Catalog service (sync-and-cache) — `feature/catalog-service`
+#### B2. Catalog service (sync-and-cache) — `feature/catalog-service` — ✅ implemented
 
 - **Scope (in):** Fetch `allCards.json` from LorcanaJSON; **map LorcanaJSON →
   `Card`**; cache with version/ETag check (download once, refresh on version
@@ -342,9 +391,12 @@ doctor` to the README troubleshooting notes.
 - **Depends on:** B1; B3 (cache lives there) — **✅ B3 done:** populate the
   `catalog_cards` + `catalog_meta` tables (migration 002) via the persistence
   layer; use the `TestSqliteDatabase` (node:sqlite) helper for persistence specs.
-- **Acceptance:** Mapper unit-tested against a **tiny committed fixture (3–5
+- **Acceptance:** Mapper unit-tested against a **tiny committed fixture (5
   cards)** — never the bulk file. IP guardrail noted in the PR. Env var added to
-  `.env.example` with docs.
+  `.env.example` with docs. — **met:** 56 green tests (mapper/normalize/cache/
+  service) with no network and Config mocked; cache-skip + transactional refresh
+  proven; base URL `https://lorcanajson.org/files/current/en`, cache keyed on
+  `generatedOn`.
 - **Size:** **M.** Flag `react-native-config` as a small native dep in the PR.
 
 #### B3. Persistence: SQLite schema + collection repository — `feature/persistence-sqlite` — ✅ implemented

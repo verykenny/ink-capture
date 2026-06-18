@@ -2,6 +2,11 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// react-native-config: generate BuildConfig/resValue entries from `.env` so
+// CATALOG_API_BASE_URL is available to JS (and native) at build time. iOS
+// autolinks via use_native_modules!; Android needs this apply line.
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
