@@ -267,18 +267,21 @@
 - **✅ Milestone C (vertical slice with a stub recognizer) is complete** — C1 + C2
   merged. The app is the first **end-to-end runnable product**: scan (stub) →
   confirm → save → browse, on the real catalog + real persistence, verified on the
-  iOS Simulator + Android emulator (2026-06-18). Only **D1** (real OCR) remains to
-  make it MVP-grade.
+  iOS Simulator + Android emulator (2026-06-18). **D1** (real OCR) is
+  implemented and the on-device accuracy spike **passed 10/10** — PR open into
+  `development`, ready to merge (see Milestone D below).
 - **Toolchain reminder (sharpened after the C2 review):** the Jest suite now
   **hard-requires Node ≥22.5 (pinned 26 via `.nvmrc`)**. On Node 20 the **9
   persistence/catalog suites fail to _load_** (`No such built-in module:
 node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
   not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
   match it. (First flagged at B3; C2 widened the affected suites.)
-- **Next action:** Task **D1** (`feature/ocr-recognition`) — the vision-camera
-  OCR frame processor + `OcrCardRecognizer`, swapped in behind `CardRecognizer`
-  (the one-line change in `@app/compositionRoot.initialize()`). **Ask-first** on
-  the ML Kit frame-processor native dep. Unblocked by C1 + C2.
+- **Next action:** **Merge D1** (`feature/ocr-recognition`, PR open into
+  `development`) — still-image ML Kit OCR + `OcrCardRecognizer`, swapped in at
+  `createAppServices`; stub preserved behind `USE_STUB_RECOGNIZER`; iOS bumped to
+  15.5; iOS + Android build clean locally. The on-device accuracy spike **passed
+  10/10 (100%)** with the height-based parser. After merge: `chore/native-ci`,
+  then D2 (confidence thresholds / multi-frame / manual-search fallback).
 
 **Settled decisions (don't re-litigate):**
 
@@ -589,23 +592,65 @@ doctor` to the README troubleshooting notes.
 
 ### Milestone D — Real recognition (swap the stub)
 
-#### D1. OCR frame processor + `OcrCardRecognizer` — `feature/ocr-recognition`
+#### D1. Still-image OCR + `OcrCardRecognizer` — `feature/ocr-recognition` — ✅ IMPLEMENTED + spike PASSED 10/10 (PR open → `development`, ready to merge)
 
-- **Scope (in):** A vision-camera **frame processor** that OCRs name + collector
-  number, feeding C1's matcher; ship as `OcrCardRecognizer` and swap it in behind
-  `CardRecognizer` (one wiring change). Start with a short spike to validate
-  accuracy before committing.
-- **Out:** Tuning/multi-frame (D2).
-- **Depends on:** C1, C2.
-- **Acceptance:** Real card scans resolve to correct candidates in good lighting;
-  the stub remains available behind a flag for tests. Matching stays
-  unit-tested; OCR integration validated manually on real cards (documented in
-  PR "how tested").
-- **Size:** **L.** **Forces the OCR decision → recommend ML Kit Text
-  Recognition** via a vision-camera frame-processor plugin: free, fully
-  on-device (offline-first, no recurring cost), and **cross-platform**. Apple
-  Vision is iOS-only, which breaks the cross-platform goal. Flag the
-  frame-processor plugin as a heavy native dep → **ask-first** before adding.
+- **Status (2026-06-18):** Implemented behind a PR into `development`; JS suite
+  green on Node 26 (typecheck/lint/format/Jest, 242 tests). The on-device
+  **accuracy spike PASSED 10/10 (100%)** — see the Spike entry below. PR is ready
+  to merge; the height-based parser (reworked from the spike captures) is the
+  shipped code path.
+- **Approach (ratified — changed from the original frame-processor sketch):**
+  **still-image** capture — tap → `camera.takePhoto()` → file URI → ML Kit
+  `recognize(uri)` → `parseCardText` → C1 matcher. **No live frame processor, no
+  `react-native-worklets-core`** (a live frame processor is a possible D2).
+  `CardImage { uri }` already fit, so no interface change.
+- **Scope (in / done):** an injectable `OcrEngine` seam + `MlKitOcrEngine` (the
+  only module importing the native lib; maps ML Kit's `{left,top,…}` frames into
+  the seam's `{x,y,…}`); the pure, test-first `parseCardText` (name + collector
+  number, with `String(Number(n))` normalization so `"042"`→`"42"` hits the
+  matcher's exact tier); `OcrCardRecognizer` composing engine → parser →
+  `matcher.match`; real still capture + temp-file cleanup (`@dr.pogodin/react-
+native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
+  `createAppServices`, with `StubCardRecognizer` preserved behind a
+  `USE_STUB_RECOGNIZER` flag. The C1 matcher and all A3 contracts are unchanged.
+- **Out (still D2):** confidence thresholds / auto-accept, multi-frame capture,
+  manual-search fallback UX, the live frame processor. **Native CI** is a
+  separate `chore/native-ci` (D1 verifies native builds locally).
+- **Spike (go/no-go — ✅ GO, 2026-06-18):** Two on-device batches (Android, 10
+  real cards spanning characters, songs, actions, items, foils). **ML Kit OCR is
+  strong** — it read name + collector number off foil/busy art on all 10 (one "7"
+  misread as "T"). The first run resolved only 5/10, but every miss was a **parser
+  bug**, not OCR (the 0.5 height band swept in body/flavor text and the big
+  lore/strength glyphs OCR'd "O4"/"43", printed taller than the name). After
+  reworking the parser (name = tallest alphabetic line; stat glyphs excluded;
+  merged stat digits stripped; regression-fixtured from the captures), the
+  **re-run resolved 10/10 = 100% correct top candidate** (9 at confidence 1.0;
+  Mirabel 0.50 — subtitle dropped, still #1 by a clear margin) — decisively above
+  the ≥~80% bar, even with Eilonwy's misread collector (its clean name carried it
+  via the fuzzy tier). **GO: D1 is mergeable.** (Sample was 10; a few more cards
+  would fully hit the stated 15–20 — nice-to-have, not a blocker.) Throwaway
+  harness (live + batch-from-photos + JSON export) lives on `spike/ocr-accuracy`
+  (not merged); spike photos stay git-ignored (IP).
+- **Native deps + app-size:** `@react-native-ml-kit/text-recognition` (on-device,
+  free, **no API key**) + `@dr.pogodin/react-native-fs`. The ML Kit lib pulls
+  **all five script recognizers** (Latin + Chinese/Devanagari/Japanese/Korean)
+  on both platforms — a real size cost: iOS resolves GoogleMLKit 8.0.0 across 98
+  pods; Android pulls `com.google.mlkit:text-recognition*:16.0.1`; the all-ABI
+  **debug** fat APK is ~192 MB (release per-ABI/density splits are far smaller).
+  Trimming to Latin-only (patch the podspec / prune the Android deps) is a
+  possible D2 size optimization.
+- **Min-OS check:** iOS bumped **15.1 → 15.5** (ML Kit's pod floor); Android
+  **minSdk 24** already clears ML Kit's 21 — no bump. The one deliberate,
+  documented change.
+- **Acceptance:** Local native builds clean on **both** platforms (iOS Debug
+  simulator build SUCCEEDED; Android `:app:assembleDebug` SUCCESSFUL). The
+  matcher stays unit-tested + unchanged; parser + recognizer are unit-tested
+  (fake engine + the real matcher over a fixture catalog). **Manual real-card
+  acceptance is pending the on-device spike**; a low-confidence/empty read still
+  routes to the Confirm screen (never blocked).
+- **Size:** **L.** ML Kit Text Recognition: free, fully on-device (offline-first,
+  no recurring cost), **cross-platform** (Apple Vision is iOS-only). The native
+  ML Kit gate was cleared at kickoff.
 
 #### D2. Recognition tuning & manual fallback — `feature/recognition-tuning`
 
@@ -658,12 +703,12 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 
 ## Open decisions & their forcing PRs
 
-| Decision         | Forced by | Recommendation                                            |
-| ---------------- | --------- | --------------------------------------------------------- |
-| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)      |
-| State management | C2        | ✅ **Zustand** (ratified; vanilla store over the repo)    |
-| Navigation       | C2        | ✅ **React Navigation** native-stack + screens (ratified) |
-| OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device)   |
+| Decision         | Forced by | Recommendation                                                             |
+| ---------------- | --------- | -------------------------------------------------------------------------- |
+| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)                       |
+| State management | C2        | ✅ **Zustand** (ratified; vanilla store over the repo)                     |
+| Navigation       | C2        | ✅ **React Navigation** native-stack + screens (ratified)                  |
+| OCR engine       | D1        | ✅ **ML Kit Text Recognition** (still-image; on-device; implemented at D1) |
 
 The **enchanted-vs-foil** modeling for B1 is settled (`finish = normal | foil`;
 enchanted/special are distinct `Card` rows) **and implemented in B1 (PR #17)**.

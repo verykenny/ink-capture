@@ -1,7 +1,7 @@
 /**
- * catalogConfig — the ONLY module that reads react-native-config. The base URL
- * is a code default (so the app works with no `.env`); Config provides an
- * optional override.
+ * catalogConfig — one of the config modules that read react-native-config (see
+ * also visionConfig). The base URL is a code default (so the app works with no
+ * `.env`); Config provides an optional override.
  *
  * react-native-config is mocked globally (jest.setup.ts) so `Config` is an empty
  * object in tests → the default is used. This spec mutates that mocked object to
