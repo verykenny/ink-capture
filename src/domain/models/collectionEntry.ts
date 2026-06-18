@@ -14,3 +14,19 @@ export interface CollectionEntry {
   addedAt: string; // ISO timestamp (B1 may switch to Date)
   updatedAt: string;
 }
+
+/**
+ * A new entry before its persisted id/timestamps are assigned.
+ * Lives here (not in @services) so domain logic can consume it without an
+ * outward dependency; re-exported from @services/persistence for consumers.
+ */
+export type NewCollectionEntry = Omit<
+  CollectionEntry,
+  'id' | 'addedAt' | 'updatedAt'
+>;
+
+/** The merge identity: a stack is unique per (card + finish + condition). */
+export type CollectionEntryKey = Pick<
+  CollectionEntry,
+  'cardId' | 'finish' | 'condition'
+>;
