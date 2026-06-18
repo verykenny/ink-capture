@@ -37,6 +37,22 @@ export const CARD_ELSA_ENCHANTED: Card = {
   availableFinishes: ['foil'],
 };
 
+/**
+ * A different-set card that REUSES collector number '042' — Lorcana numbers
+ * repeat across sets, so CARD_ELSA ('042', TFC) and this card collide on number
+ * alone. A collectorNumber-only query is therefore ambiguous; the name picks the
+ * right set's card. Hand-authored — never bulk data.
+ */
+export const CARD_STITCH_ROCK_STAR: Card = {
+  id: 'ROF-042',
+  name: 'Stitch',
+  version: 'Rock Star',
+  setCode: 'ROF',
+  collectorNumber: '042',
+  rarity: 'Super Rare',
+  availableFinishes: ['normal', 'foil'],
+};
+
 /** A second distinct card, available in normal + foil. */
 export const CARD_MICKEY: Card = {
   id: 'TFC-115',
