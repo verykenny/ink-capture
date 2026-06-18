@@ -20,7 +20,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ConfirmSheet } from '@ui/scan/ConfirmSheet';
 import type { RootStackParamList } from '@ui/navigationTypes';
 import { AppServicesProvider, createCollectionStore } from '@state';
-import type { AppServices } from '@state';
+import type { AppServices, CollectionStore } from '@state';
 import {
   createCollectionRepository,
   createPersistenceService,
@@ -28,7 +28,7 @@ import {
 import { CONDITIONS, FINISHES } from '@domain';
 import type { RecognitionResult } from '@domain';
 import { TestSqliteDatabase } from '../persistence/testDatabase';
-import { CARD_ELSA } from '../fixtures/cards';
+import { CARD_ELSA, CARD_ELSA_ENCHANTED } from '../fixtures/cards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Confirm'>;
 
@@ -128,6 +128,45 @@ test('Save is never gated by confidence — a low-confidence candidate still sav
   await waitFor(() => expect(navigation.popToTop).toHaveBeenCalled());
   expect(store.getState().entries).toHaveLength(1);
   await db.close();
+});
+
+test('defaults the finish to the card’s first availableFinishes (not FINISHES[0])', async () => {
+  const { db, services, store } = await buildServices();
+  // CARD_ELSA_ENCHANTED is foil-only, so the default finish must be 'foil' — which
+  // distinguishes availableFinishes[0] from FINISHES[0] ('normal').
+  renderSheet(services, {
+    candidates: [{ card: CARD_ELSA_ENCHANTED, confidence: 1 }],
+  });
+
+  // Press Add without touching any picker — exercise the documented defaults.
+  fireEvent.press(screen.getByText('Add to collection'));
+
+  await waitFor(() => expect(navigation.popToTop).toHaveBeenCalled());
+  expect(store.getState().entries[0]).toMatchObject({
+    cardId: 'TFC-204',
+    finish: 'foil',
+    condition: 'NM',
+    quantity: 1,
+  });
+  await db.close();
+});
+
+test('a rejected save stays on the sheet and re-enables Add (no popToTop)', async () => {
+  const add = jest.fn(() => Promise.reject(new Error('save failed')));
+  const collectionStore = {
+    getState: () => ({ add }),
+  } as unknown as CollectionStore;
+  const services = { collectionStore } as unknown as AppServices;
+
+  renderSheet(services, ELSA_RESULT);
+  fireEvent.press(screen.getByLabelText('Add to collection'));
+
+  await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
+  // The save failed: do not navigate, and re-enable the button for a retry.
+  expect(navigation.popToTop).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(screen.getByLabelText('Add to collection')).toBeEnabled(),
+  );
 });
 
 test('an empty candidate list shows the no-match branch with no save control', async () => {
