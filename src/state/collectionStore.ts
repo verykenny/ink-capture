@@ -54,16 +54,24 @@ export const createCollectionStore = (
     },
 
     add: async entry => {
+      let created: CollectionEntry;
       try {
-        const created = await repo.add(entry);
-        // Re-list so a merge (quantity bump) vs. a fresh row is reflected as the
-        // repository actually resolved it — the store never guesses the outcome.
-        const entries = await repo.list();
-        set({ entries, status: 'ready', error: undefined });
-        return created;
+        created = await repo.add(entry);
       } catch (error) {
+        // Only a failed WRITE is a failure.
         set({ status: 'error', error: messageOf(error) });
         throw error;
       }
+      // The write committed; refresh the list so a merge (quantity bump) vs. a
+      // fresh row is reflected as the repository actually resolved it — the store
+      // never guesses the outcome. A failed *refresh* must not report the save as
+      // a failure (that would invite a duplicate add): keep status 'ready'.
+      try {
+        const entries = await repo.list();
+        set({ entries, status: 'ready', error: undefined });
+      } catch {
+        set({ status: 'ready', error: undefined });
+      }
+      return created;
     },
   }));

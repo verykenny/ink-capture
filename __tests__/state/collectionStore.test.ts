@@ -136,5 +136,30 @@ describe('createCollectionStore', () => {
       expect(store.getState().entries).toEqual([]);
       await db.close();
     });
+
+    test('a re-list failure after a committed write still reports success (no double-add)', async () => {
+      const db = new TestSqliteDatabase();
+      await createPersistenceService(db).init();
+      // Fail only the list() query (ORDER BY id); repo.add still commits, so the
+      // store must not report a successful write as a failure (which would invite
+      // a duplicate add).
+      const recording = new RecordingSqliteDatabase(db, sql =>
+        /ORDER BY id/i.test(sql),
+      );
+      const repo = createCollectionRepository(recording, {
+        now: () => FIXED_NOW,
+      });
+      const store = createCollectionStore(repo);
+
+      const created = await store.getState().add(newEntry({ quantity: 1 }));
+
+      expect(created.quantity).toBe(1);
+      expect(store.getState().status).toBe('ready');
+      // the row really persisted despite the failed refresh
+      expect(
+        (await db.execute('SELECT * FROM collection_entries')).rows,
+      ).toHaveLength(1);
+      await db.close();
+    });
   });
 });
