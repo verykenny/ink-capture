@@ -140,7 +140,7 @@
     available_finishes as a JSON array, image_url) and `catalog_meta(key, value)`
     for the version/ETag — **B3 created them empty; B2 owns population + mapping.**
 - **B2 catalog service (sync-and-cache) is complete** (`feature/catalog-service`,
-  PR → `development`, pending review): the `CatalogService` contract gets a body —
+  PR #21 → `development`, merged 2026-06-17): the `CatalogService` contract gets a body —
   `LorcanaCatalogService` fetches LorcanaJSON's `metadata.json` + `allCards.json`,
   maps each card to the settled `Card` model, and caches it into B3's
   `catalog_cards` / `catalog_meta` (no new migration), exposing
@@ -176,6 +176,18 @@
   - **IP guardrail:** only a tiny hand-authored fixture (3 `cards.ts`-matching
     rows + 2 numeric-id edge cards, fake `example.test` image URLs) is committed —
     never the bulk `allCards.json`, never card images.
+  - **Follow-ons (from B2 review, non-blocking):** (1) **iOS `.env` override not
+    wired** — the iOS pod autolinks but surfacing an actual `.env` _value_ into the
+    iOS build needs a build phase; `DEFAULT_CATALOG_BASE_URL` (code default) covers
+    MVP, so this only matters if a real iOS catalog-URL override is ever needed.
+    (2) **Refresh is a full table-replace** (DELETE-all + re-INSERT); fine at this
+    scale/frequency — a diff-upsert is a future optimization only if refresh cost
+    matters.
+- **✅ Milestone B (Domain & Data) is complete** — B1 + B2 + B3 all merged. The
+  domain models/rules, the SQLite persistence + repository, and the catalog
+  sync-and-cache are all in place and tested. **C1 is fully unblocked** (it has a
+  real cached catalog with exact + name-index lookups and the shared
+  `normalizeCardName`).
 - **Next action:** Task **C1** (`feature/recognition-matching`) — pure matching
   (exact collector-number hit → fuzzy normalized-name fallback) over B2's cached
   catalog + a `StubCardRecognizer`. Reuse B2's `normalizeCardName` on the query
