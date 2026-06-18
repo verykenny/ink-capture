@@ -127,6 +127,8 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
         }}
         disabled={saving}
         accessibilityRole="button"
+        accessibilityLabel="Add to collection"
+        accessibilityState={{ disabled: saving }}
       >
         <Text style={styles.addButtonText}>Add to collection</Text>
       </TouchableOpacity>

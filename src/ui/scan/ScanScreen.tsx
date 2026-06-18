@@ -44,9 +44,18 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
 
   useEffect(() => {
     if (!hasPermission) {
+      let cancelled = false;
       // eslint-disable-next-line no-void -- fire-and-forget the permission prompt
-      void requestPermission().finally(() => setDidRequest(true));
+      void requestPermission().finally(() => {
+        if (!cancelled) {
+          setDidRequest(true);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
     }
+    return undefined;
   }, [hasPermission, requestPermission]);
 
   const onCapture = useCallback(async () => {
