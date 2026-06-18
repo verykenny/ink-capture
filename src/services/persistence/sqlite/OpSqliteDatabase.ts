@@ -25,14 +25,25 @@ export class OpSqliteDatabase implements SqliteDatabase {
   private readonly db: DB;
 
   constructor(options: OpSqliteOptions = {}) {
-    this.db = open({
+    // Build params WITHOUT a `location` key unless one is provided: op-sqlite's
+    // native open() rejects `location: undefined` ("Value is undefined, expected
+    // a String") and crashes the app, whereas an absent key uses the default
+    // location. (Caught on the iOS simulator — the mocked unit tests can't see it.)
+    const params: { name: string; location?: string } = {
       name: options.name ?? DATABASE_NAME,
-      location: options.location,
-    });
+    };
+    if (options.location !== undefined) {
+      params.location = options.location;
+    }
+    this.db = open(params);
   }
 
   async execute(sql: string, params?: readonly SqlParam[]): Promise<SqlResult> {
-    const result = await this.db.execute(sql, params ? [...params] : undefined);
+    // Omit the params arg entirely when there are none — don't hand the native
+    // bridge an explicit `undefined`.
+    const result = await (params
+      ? this.db.execute(sql, [...params])
+      : this.db.execute(sql));
     return {
       rows: result.rows ?? [],
       rowsAffected: result.rowsAffected ?? 0,
