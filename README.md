@@ -285,9 +285,11 @@ React Native native toolchain for iOS and/or Android.
 
 ### Prerequisites
 
-- **Node 20 LTS** — the version is pinned in [`.nvmrc`](.nvmrc); with `nvm`, run
+- **Node 26** — the version is pinned in [`.nvmrc`](.nvmrc); with `nvm`, run
   `nvm use` (or `nvm install`) in the repo root. `npm` ships with Node and is the
-  package manager for this project.
+  package manager for this project. (Node **≥ 22.5** is the hard minimum: the test
+  suite uses Node's built-in `node:sqlite`, added in 22.5 — see `engines` in
+  [`package.json`](package.json).)
 - **Watchman** — `brew install watchman`.
 - **iOS:** Xcode **16.1+** with an iOS Simulator runtime, plus **Ruby + Bundler +
   CocoaPods** (CocoaPods is managed via the project [`Gemfile`](Gemfile), so you
@@ -330,7 +332,7 @@ bash scripts/setup.sh    # nvm install/use -> npm install -> bundle install -> p
 **Manual steps (fallback)** — equivalent to what `setup.sh` runs:
 
 ```sh
-nvm use            # Node 20 (per .nvmrc)
+nvm use            # Node 26 (per .nvmrc)
 npm install        # JS dependencies
 
 # iOS native dependencies (CocoaPods, via Bundler)

@@ -24,6 +24,7 @@
     ]
   },
   "dependencies": {
+    "@op-engineering/op-sqlite": "^16.2.2",
     "@react-native/new-app-screen": "0.86.0",
     "react": "19.2.3",
     "react-native": "0.86.0",
@@ -44,6 +45,7 @@
     "@react-native/typescript-config": "0.86.0",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.13",
+    "@types/node": "^22.5.0",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
     "babel-plugin-module-resolver": "^5.0.3",
@@ -56,6 +58,6 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.5.0"
   }
 }
