@@ -171,4 +171,30 @@ describe('matchEntries — fuzzy normalized-name fallback', () => {
       CARD_MICKEY.id,
     ]);
   });
+
+  test('exact tier empty but a name is present → falls through to the fuzzy tier', () => {
+    // The collectorNumber matches nothing, but the name does: this must rank by
+    // name (the exact-miss → fuzzy fall-through), not short-circuit to [].
+    const result = matchEntries(
+      { collectorNumber: '999', nameKey: 'elsa snow queen' },
+      [ENTRY_ELSA, ENTRY_MICKEY],
+    );
+    expect(result[0].card.id).toBe(CARD_ELSA.id);
+    expect(result[0].confidence).toBe(1);
+    expect(result.map(candidate => candidate.card.id)).not.toContain(
+      CARD_MICKEY.id, // below threshold
+    );
+  });
+
+  test('defaults to a fuzzy limit of 5 when no limit option is given', () => {
+    // Six entries all sharing the query key (similarity 1.0 each); the default
+    // cap of 5 must truncate. Reuses CARD_ELSA — fixtures only, no bulk data.
+    const sixSameKey: CatalogMatchEntry[] = Array.from({ length: 6 }, () => ({
+      card: CARD_ELSA,
+      key: 'elsa snow queen',
+    }));
+    expect(
+      matchEntries({ nameKey: 'elsa snow queen' }, sixSameKey),
+    ).toHaveLength(5);
+  });
 });
