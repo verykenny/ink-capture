@@ -267,22 +267,21 @@
 - **✅ Milestone C (vertical slice with a stub recognizer) is complete** — C1 + C2
   merged. The app is the first **end-to-end runnable product**: scan (stub) →
   confirm → save → browse, on the real catalog + real persistence, verified on the
-  iOS Simulator + Android emulator (2026-06-18). **D1** (real OCR) is now
-  implemented (PR open into `development`; on-device accuracy spike pending) —
-  see Milestone D below.
+  iOS Simulator + Android emulator (2026-06-18). **D1** (real OCR) is
+  implemented and the on-device accuracy spike **passed 10/10** — PR open into
+  `development`, ready to merge (see Milestone D below).
 - **Toolchain reminder (sharpened after the C2 review):** the Jest suite now
   **hard-requires Node ≥22.5 (pinned 26 via `.nvmrc`)**. On Node 20 the **9
   persistence/catalog suites fail to _load_** (`No such built-in module:
 node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
   not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
   match it. (First flagged at B3; C2 widened the affected suites.)
-- **Next action:** **D1 is implemented — PR open into `development`**
-  (`feature/ocr-recognition`): still-image ML Kit OCR + `OcrCardRecognizer`,
-  swapped in at `createAppServices`; stub preserved behind `USE_STUB_RECOGNIZER`;
-  iOS bumped to 15.5; iOS + Android build clean locally. The one remaining gate
-  is the **on-device accuracy spike** (≥~80% correct top candidate on ~15–20 real
-  cards) — a throwaway harness is on `spike/ocr-accuracy`. After a go: merge D1,
-  then `chore/native-ci`. On a no-go: fall back to a manual-search MVP (D2).
+- **Next action:** **Merge D1** (`feature/ocr-recognition`, PR open into
+  `development`) — still-image ML Kit OCR + `OcrCardRecognizer`, swapped in at
+  `createAppServices`; stub preserved behind `USE_STUB_RECOGNIZER`; iOS bumped to
+  15.5; iOS + Android build clean locally. The on-device accuracy spike **passed
+  10/10 (100%)** with the height-based parser. After merge: `chore/native-ci`,
+  then D2 (confidence thresholds / multi-frame / manual-search fallback).
 
 **Settled decisions (don't re-litigate):**
 
@@ -593,14 +592,13 @@ doctor` to the README troubleshooting notes.
 
 ### Milestone D — Real recognition (swap the stub)
 
-#### D1. Still-image OCR + `OcrCardRecognizer` — `feature/ocr-recognition` — ✅ IMPLEMENTED (PR open → `development`; on-device spike pending)
+#### D1. Still-image OCR + `OcrCardRecognizer` — `feature/ocr-recognition` — ✅ IMPLEMENTED + spike PASSED 10/10 (PR open → `development`, ready to merge)
 
 - **Status (2026-06-18):** Implemented behind a PR into `development`; JS suite
-  green on Node 26 (typecheck/lint/format/Jest, 231 tests). The on-device
-  **accuracy spike is the one open gate** — it needs real cards on a device and
-  is pending the user's run (below). The shipped code path _is_ the "go"
-  implementation and the reference for the D2 manual-search fallback if the spike
-  disappoints.
+  green on Node 26 (typecheck/lint/format/Jest, 242 tests). The on-device
+  **accuracy spike PASSED 10/10 (100%)** — see the Spike entry below. PR is ready
+  to merge; the height-based parser (reworked from the spike captures) is the
+  shipped code path.
 - **Approach (ratified — changed from the original frame-processor sketch):**
   **still-image** capture — tap → `camera.takePhoto()` → file URI → ML Kit
   `recognize(uri)` → `parseCardText` → C1 matcher. **No live frame processor, no
@@ -618,20 +616,21 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 - **Out (still D2):** confidence thresholds / auto-accept, multi-frame capture,
   manual-search fallback UX, the live frame processor. **Native CI** is a
   separate `chore/native-ci` (D1 verifies native builds locally).
-- **Spike (go/no-go — RUN once; re-validation PENDING):** First on-device batch
-  (10 real cards, Android, 2026-06-18) showed **ML Kit OCR is strong** — it read
-  the card name + collector number off foil/busy art on all 10 (one "7" misread
-  as "T"). Initial resolution was only **5/10**, but every miss was a **parser
-  bug**, not OCR: the old 0.5 height band swept in body/flavor text and the big
-  lore/strength glyphs (OCR'd "O4", "43") printed taller than the name. The
-  parser was reworked (name = tallest alphabetic line; stat glyphs excluded;
-  merged stat digits stripped) and regression-fixtured from the captured
-  `OcrResult`s; the cleaned names resolve all 10 in trace. **Re-running the batch
-  on-device with the fixed parser to confirm ≥~80% is the remaining gate.** Bar:
-  ~15–20 real cards in good lighting, ≥~80% correct top candidate; below it →
-  ship a manual-search MVP and treat OCR as a D2 fast-follow. Throwaway harness
-  (live + batch-from-photos + JSON export) lives on `spike/ocr-accuracy` (not
-  merged); spike photos stay git-ignored (IP).
+- **Spike (go/no-go — ✅ GO, 2026-06-18):** Two on-device batches (Android, 10
+  real cards spanning characters, songs, actions, items, foils). **ML Kit OCR is
+  strong** — it read name + collector number off foil/busy art on all 10 (one "7"
+  misread as "T"). The first run resolved only 5/10, but every miss was a **parser
+  bug**, not OCR (the 0.5 height band swept in body/flavor text and the big
+  lore/strength glyphs OCR'd "O4"/"43", printed taller than the name). After
+  reworking the parser (name = tallest alphabetic line; stat glyphs excluded;
+  merged stat digits stripped; regression-fixtured from the captures), the
+  **re-run resolved 10/10 = 100% correct top candidate** (9 at confidence 1.0;
+  Mirabel 0.50 — subtitle dropped, still #1 by a clear margin) — decisively above
+  the ≥~80% bar, even with Eilonwy's misread collector (its clean name carried it
+  via the fuzzy tier). **GO: D1 is mergeable.** (Sample was 10; a few more cards
+  would fully hit the stated 15–20 — nice-to-have, not a blocker.) Throwaway
+  harness (live + batch-from-photos + JSON export) lives on `spike/ocr-accuracy`
+  (not merged); spike photos stay git-ignored (IP).
 - **Native deps + app-size:** `@react-native-ml-kit/text-recognition` (on-device,
   free, **no API key**) + `@dr.pogodin/react-native-fs`. The ML Kit lib pulls
   **all five script recognizers** (Latin + Chinese/Devanagari/Japanese/Korean)
