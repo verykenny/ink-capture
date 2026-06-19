@@ -1,0 +1,120 @@
+name: Native build
+
+# Compiles the app on BOTH platforms — the gap the JS-only gate (ci.yml) can't
+# catch: a native dependency that needs a higher iOS deployment target (as ML Kit
+# did at D1), a Podfile/Gradle break, or an SDK/NDK mismatch. Path-filtered so
+# pure-JS / docs PRs skip the costly macOS + Android builds; it runs only when a
+# native-affecting file changes. (A `push:` to development could be added later
+# for post-merge verification.)
+#
+# NOTE: because this is path-filtered, do NOT mark it a *required* status check in
+# branch protection as-is — a PR that touches no native files would never run it
+# and could not merge. Keep it advisory, or switch to a paths-aware gating pattern.
+
+on:
+  pull_request:
+    branches: [development]
+    paths:
+      - 'ios/**'
+      - 'android/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Gemfile'
+      - 'Gemfile.lock'
+      - '.nvmrc'
+      - '.github/workflows/native-build.yml'
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch to save runner minutes.
+concurrency:
+  group: native-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS · Debug simulator build
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Set up Ruby + Bundler (CocoaPods)
+        uses: ruby/setup-ruby@v1
+        with:
+          # Gemfile.lock is bundled with Bundler 1.17.2, which only runs on Ruby
+          # < 3.2 (`.untaint` was removed in 3.2). Ruby 3.1 keeps the Gemfile /
+          # Bundler path faithful to local (scripts/setup.sh). bundler-cache runs
+          # `bundle install` and caches the gems.
+          ruby-version: '3.1'
+          bundler-cache: true
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          ruby --version
+          bundle exec pod --version
+          node --version
+
+      - name: CocoaPods install
+        run: bundle exec pod install --project-directory=ios
+
+      - name: Build (Debug, generic iOS Simulator, no code signing)
+        run: |
+          xcodebuild \
+            -workspace ios/InkCapture.xcworkspace \
+            -scheme InkCapture \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  android:
+    name: Android · assembleDebug
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned SDK packages (from android/build.gradle)
+        run: |
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.1.12297006"
+
+      - name: Toolchain versions
+        run: |
+          java -version
+          node --version
+
+      - name: Gradle assembleDebug
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
