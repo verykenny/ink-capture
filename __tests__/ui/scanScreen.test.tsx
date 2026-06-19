@@ -32,14 +32,18 @@ import { CARD_ELSA } from '../fixtures/cards';
 const CAPTURE_PATH = '/data/tmp/inkcapture-capture.jpg';
 
 const mockTakePhoto = jest.fn(async () => ({ path: CAPTURE_PATH }));
-let mockDevice: unknown = { id: 'back-camera' };
+const mockFocus = jest.fn(async () => undefined);
+let mockDevice: unknown = { id: 'back-camera', supportsFocus: true };
 let mockHasPermission = true;
 
 jest.mock('react-native-vision-camera', () => {
   const ReactLib = require('react');
   return {
     Camera: ReactLib.forwardRef((_props: unknown, ref: unknown) => {
-      ReactLib.useImperativeHandle(ref, () => ({ takePhoto: mockTakePhoto }));
+      ReactLib.useImperativeHandle(ref, () => ({
+        takePhoto: mockTakePhoto,
+        focus: mockFocus,
+      }));
       return null;
     }),
     useCameraDevice: () => mockDevice,
@@ -76,7 +80,7 @@ const renderScreen = (recognize: CardRecognizer['recognize']) =>
   );
 
 beforeEach(() => {
-  mockDevice = { id: 'back-camera' };
+  mockDevice = { id: 'back-camera', supportsFocus: true };
   mockHasPermission = true;
 });
 
@@ -118,6 +122,31 @@ test('ignores a second Capture while the first is still in flight', async () => 
   await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
   expect(mockTakePhoto).toHaveBeenCalledTimes(1);
   expect(recognize).toHaveBeenCalledTimes(1);
+});
+
+test('tap-to-focus: tapping the preview focuses the camera at that point', () => {
+  renderScreen(jest.fn(async () => RESULT));
+
+  fireEvent(screen.getByTestId('focusTarget'), 'touchEnd', {
+    nativeEvent: { locationX: 120, locationY: 200 },
+  });
+
+  expect(mockFocus).toHaveBeenCalledWith({ x: 120, y: 200 });
+});
+
+test('autofocuses the centre before capturing once the preview is measured', async () => {
+  const recognize = jest.fn(async () => RESULT);
+  renderScreen(recognize);
+
+  // The real preview reports its size via onLayout on mount; simulate that so
+  // the centre point is known, then capture.
+  fireEvent(screen.getByTestId('cameraPreview'), 'layout', {
+    nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 600 } },
+  });
+  fireEvent.press(screen.getByText('Capture'));
+
+  await waitFor(() => expect(navigation.navigate).toHaveBeenCalled());
+  expect(mockFocus).toHaveBeenCalledWith({ x: 200, y: 300 });
 });
 
 test('still deletes the captured file even when recognition rejects', async () => {
