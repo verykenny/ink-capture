@@ -276,11 +276,13 @@
 node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
   not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
   match it. (First flagged at B3; C2 widened the affected suites.)
-- **Next action:** **D1 is merged into `development`** (PR #27) — the MVP loop is
-  real-OCR end-to-end; the on-device accuracy spike **passed 10/10 (100%)** with
-  the height-based parser. `chore/native-ci` (this PR) adds the iOS + Android CI
-  build gate. Then **D2** (confidence thresholds / multi-frame / manual-search
-  fallback, plus the Mirabel dropped-subtitle edge).
+- **Next action:** **D1 + native CI are merged into `development`** (PRs #27/#29);
+  scan capture then gained **tap-to-focus + ultra-wide macro autofocus + pinch
+  zoom** (PR #30) after on-device testing showed the default wide lens couldn't
+  focus close enough to read a card. **D2 is now the priority and more urgent than
+  planned:** the spike scored 10/10 on curated stills, but **live on-device
+  accuracy is poor** — e.g. _Boun_ (#104) repeatedly resolves to _Billy Bones_
+  (#104) at ~26%. See the expanded D2 below.
 
 **Settled decisions (don't re-litigate):**
 
@@ -653,13 +655,36 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 
 #### D2. Recognition tuning & manual fallback — `feature/recognition-tuning`
 
-- **Scope (in):** Confidence thresholds, optional multi-frame capture, graceful
-  fallback to **manual search/correction** when confidence is low.
+- **Why it's now urgent (live finding, 2026-06-18):** D1's spike scored **10/10 on
+  pre-shot, well-composed stills**, but **live on-device accuracy is poor** — e.g.
+  _Boun_ (#104) repeatedly resolves to _Billy Bones_ (#104) at ~26%. Two cards
+  share collector number 104, so the exact tier ranks same-number cards by name
+  similarity; when the **live OCR reads the name weakly** (glare, angle, ultra-wide
+  macro distortion, motion, lighting), the wrong same-number card wins. Closing the
+  gap between the spike's curated stills and real live captures is the core job.
+- **Scope (in):**
+  - **Diagnose live capture/OCR quality first:** a dev overlay (or logging) of the
+    raw ML Kit text + parsed `RecognitionSource` + ranked candidates from real
+    scans, to see what OCR actually reads live vs the clean spike stills.
+  - **Confidence thresholds:** below a floor, don't assert a wrong #1 — route to a
+    manual pick.
+  - **Show top-N candidates** on Confirm (not just #1) so the user can choose the
+    right same-number card; **manual search/correction** as the fallback.
+  - **Capture quality:** optional **multi-frame** capture (snap a few, keep the
+    sharpest / best OCR); evaluate **wide vs ultra-wide** for text sharpness (the
+    ultra-wide macro focuses close but distorts — a sharp wide shot may OCR
+    better); consider a brief focus-settle/stability gate before the shutter.
+  - **Matcher ranking:** when the name is weak, require a **name-similarity floor**
+    and/or weight the exact collector-number signal so a poor name read can't flip
+    to the wrong same-number card.
 - **Out:** Second backend, pricing.
 - **Depends on:** D1.
-- **Acceptance:** Low-confidence scans route to manual pick instead of guessing
-  wrong; thresholds tested.
-- **Size:** **M.**
+- **Acceptance:** Live scans of well-lit cards resolve to the correct card (or
+  surface it in a usable top-N / manual pick) at a rate near the spike's; a
+  low-confidence scan never silently asserts a wrong #1; thresholds tested. The
+  **"Boun → Billy Bones"** case resolves correctly or surfaces Boun in the top-N.
+- **Carry-over:** the Mirabel dropped-subtitle parser edge from the D1 spike.
+- **Size:** **M–L** (was M; the live-accuracy gap widened it).
 
 ### Milestone E — Hardening (mostly v1)
 

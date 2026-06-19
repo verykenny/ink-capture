@@ -97,25 +97,6 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
     [],
   );
 
-  // Dev-only: surface the selected camera's focus/zoom capabilities so close-focus
-  // problems are diagnosable straight from the Metro logs.
-  useEffect(() => {
-    if (__DEV__ && device) {
-      console.log('[scan] camera device', {
-        name: device.name,
-        physicalDevices: device.physicalDevices,
-        isMultiCam: device.isMultiCam,
-        supportsFocus: device.supportsFocus,
-        minFocusDistance: device.minFocusDistance,
-        zoom: {
-          min: device.minZoom,
-          neutral: device.neutralZoom,
-          max: device.maxZoom,
-        },
-      });
-    }
-  }, [device]);
-
   /** Focus the camera at a view-space point. Best-effort: focus can reject if the
    * device is busy or the point is invalid, and a failed focus must never block a
    * capture. Resolves to nothing whether or not focus is supported. */

@@ -350,15 +350,16 @@ Start Metro in one terminal, then build/run the app in another:
 ```sh
 npm start          # Metro bundler
 
-npm run ios        # build + launch on the iOS Simulator
+npm run ios        # iOS — needs a physical device on Apple Silicon (see Troubleshooting)
 # or
 npm run android    # build + launch on an Android emulator/device
 ```
 
 On first launch the app requests **camera permission**. Granting it shows a live
-back-camera preview (the iOS Simulator has no camera hardware, so it shows a
-"granted, no device" state — use an Android emulator's virtual camera or a real
-device to see the preview).
+back-camera preview — **tap the card to focus, pinch to zoom** (pinch out engages
+the ultra-wide for close-up macro). The **iOS Simulator can't run this app on
+Apple Silicon** (ML Kit ships no arm64-simulator slice — see Troubleshooting); use
+a **physical iOS device** or an Android emulator's virtual camera.
 
 **When do I need `pod install`?** Not on every build. The day-to-day loop is just
 `npm start` + `npm run ios` (or `npm run android`); pure JS/TS changes only need
@@ -409,6 +410,28 @@ against the system Ruby.
 **"Unable to boot device in current state: Booted."** Harmless — the simulator
 was already running, so the boot request was a no-op. Dismiss it; the build
 continues.
+
+**iOS Simulator won't run the app on Apple Silicon (`xcodebuild` lists no
+simulator / "Unable to find a destination").** ML Kit ships **no arm64-simulator**
+binaries, so `pod install` excludes `arm64` for the simulator
+(`EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64`) and the build targets `x86_64` —
+but Apple Silicon Macs only have **arm64** simulators, so there is no simulator to
+run on. **Run on a physical iOS device** (the camera is the whole point;
+simulators have no camera anyway):
+
+- **Signing & Capabilities → Automatically manage signing → pick your Team** (a
+  free personal Apple ID works for development).
+- First launch on the phone: **Settings → General → VPN & Device Management →
+  Trust** your developer certificate.
+- A Debug build loads JS from Metro over the LAN, so **allow the "Local Network"
+  prompt** and keep the phone on the **same Wi-Fi** as the Mac. After that, JS
+  changes just need a **Reload** (shake → Reload) — no rebuild.
+
+**Xcode's debugger pauses on `__abort_with_payload` at launch (continuing
+works).** A benign, internally-handled system exception that the attached
+debugger stops on. Either click Continue, delete the "All Exceptions" breakpoint
+(⌘8), or simply launch the app from the **home screen** instead of Xcode's ▶ — no
+debugger, no pause.
 
 **CocoaPods warns "your terminal must use UTF-8 encoding."** Set a UTF-8 locale
 (add it to your shell profile to make it permanent):
