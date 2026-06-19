@@ -10,10 +10,12 @@
  * the user always confirms on the next screen, so a low-confidence (or empty)
  * read still routes to Confirm.
  *
- * Sharpness is everything for OCR, so the preview supports **tap-to-focus** (tap
- * the card to lock focus, with a brief reticle) and **autofocuses the centre
- * before every capture** so a soft frame doesn't starve the recogniser. A framing
- * guide nudges the user to a distance the wide lens can actually focus at.
+ * Sharpness is everything for OCR, so the preview selects a **multi-camera device
+ * including the ultra-wide lens** (which autofocuses far closer than the wide
+ * lens — the iPhone's macro path), supports **tap-to-focus** (with a brief
+ * reticle) and **pinch-to-zoom** (pinch out engages the ultra-wide for close-up
+ * macro), and **autofocuses the centre before every capture** so a soft frame
+ * doesn't starve the recogniser.
  *
  * Capture needs a real camera device, so it is offered only when one is present
  * (a simulator reports none); the preview area explains the no-device case.
@@ -54,7 +56,14 @@ const RETICLE_MS = 900;
 export function ScanScreen({ navigation }: Props): React.JSX.Element {
   const { recognizer } = useAppServices();
   const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  // Prefer a multi-camera device that includes the ultra-wide lens: on recent
+  // iPhones the ultra-wide autofocuses much closer (macro), so a card held near
+  // the phone can actually be focused — the plain wide lens cannot focus that
+  // close. vision-camera engages the ultra-wide at <=1x zoom, so pinch-zoom out
+  // for the closest macro focus.
+  const device = useCameraDevice('back', {
+    physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera'],
+  });
   const cameraRef = useRef<Camera>(null);
   const capturing = useRef(false);
   const previewSize = useRef<{ width: number; height: number } | null>(null);
@@ -87,6 +96,25 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
     },
     [],
   );
+
+  // Dev-only: surface the selected camera's focus/zoom capabilities so close-focus
+  // problems are diagnosable straight from the Metro logs.
+  useEffect(() => {
+    if (__DEV__ && device) {
+      console.log('[scan] camera device', {
+        name: device.name,
+        physicalDevices: device.physicalDevices,
+        isMultiCam: device.isMultiCam,
+        supportsFocus: device.supportsFocus,
+        minFocusDistance: device.minFocusDistance,
+        zoom: {
+          min: device.minZoom,
+          neutral: device.neutralZoom,
+          max: device.maxZoom,
+        },
+      });
+    }
+  }, [device]);
 
   /** Focus the camera at a view-space point. Best-effort: focus can reject if the
    * device is busy or the point is invalid, and a failed focus must never block a
@@ -194,6 +222,7 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
               device={device}
               isActive
               photo
+              enableZoomGesture
             />
             <View style={styles.guide} pointerEvents="none">
               <View style={styles.guideBox} />
@@ -227,7 +256,8 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
       {device ? (
         <>
           <Text style={styles.hint}>
-            Fill the frame, hold steady ~20 cm away, tap the card to focus.
+            Tap the card to focus · pinch to zoom (pinch out for close-up macro)
+            · hold steady.
           </Text>
           <TouchableOpacity
             style={styles.captureButton}
