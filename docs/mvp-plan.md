@@ -267,15 +267,31 @@
 - **✅ Milestone C (vertical slice with a stub recognizer) is complete** — C1 + C2
   merged. The app is the first **end-to-end runnable product**: scan (stub) →
   confirm → save → browse, on the real catalog + real persistence, verified on the
-  iOS Simulator + Android emulator (2026-06-18). **D1** (real OCR) is
-  implemented and the on-device accuracy spike **passed 10/10** — PR open into
-  `development`, ready to merge (see Milestone D below).
+  iOS Simulator + Android emulator (2026-06-18). **D1** (real OCR) is **merged**
+  (PR #27), with the on-device accuracy spike **passed 10/10** (see Milestone D
+  below).
 - **Toolchain reminder (sharpened after the C2 review):** the Jest suite now
   **hard-requires Node ≥22.5 (pinned 26 via `.nvmrc`)**. On Node 20 the **9
   persistence/catalog suites fail to _load_** (`No such built-in module:
 node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
   not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
   match it. (First flagged at B3; C2 widened the affected suites.)
+- **✅ MVP loop achieved — code-complete and runnable, not yet field-hardened.**
+  D1 (PR #27, merged 2026-06-18) makes the documented loop real: **scan a physical
+  card → on-device ML Kit OCR → C1 match → confirm → save → browse, persisted.**
+  All MVP-tier tasks (A1–C2, **D1**) are merged, and **native iOS+Android build CI
+  is now wired** (`chore/native-ci`, PR #29 — closes the long-standing optional
+  follow-up). **Honest caveat:** the 10/10 spike was on curated stills; **live-camera
+  accuracy is not yet field-reliable** (glare/focus/misreads, e.g. _Boun_ #104 →
+  _Billy Bones_ #104 ~26%). PR #30 added tap-to-focus + ultra-wide macro autofocus
+  - pinch zoom to help; **D2 is what makes recognition dependable in the field.**
+- **Native deps added at D1 (visibility / retroactive ratification):**
+  `@react-native-ml-kit/text-recognition` (on-device, free, no key — the approved
+  OCR engine) and a light filesystem module `@dr.pogodin/react-native-fs`, used
+  only to delete the captured still after OCR (privacy/storage — the temp-file
+  cleanup the plan asked for). The ML Kit pod bumped the **iOS deployment target to
+  15.5** (handled in the Podfile). The fs module is a small native dep added under
+  the cleanup requirement rather than its own ask-first — flagging for awareness.
 - **Next action:** **D1 + native CI are merged into `development`** (PRs #27/#29);
   scan capture then gained **tap-to-focus + ultra-wide macro autofocus + pinch
   zoom** (PR #30) after on-device testing showed the default wide lens couldn't
@@ -593,7 +609,7 @@ doctor` to the README troubleshooting notes.
 
 ### Milestone D — Real recognition (swap the stub)
 
-#### D1. Still-image OCR + `OcrCardRecognizer` — `feature/ocr-recognition` — ✅ IMPLEMENTED + spike PASSED 10/10 (PR open → `development`, ready to merge)
+#### D1. Still-image OCR + `OcrCardRecognizer` — `feature/ocr-recognition` — ✅ complete — spike PASSED 10/10 (PR #27 → `development`, merged 2026-06-18)
 
 - **Status (2026-06-18):** Implemented behind a PR into `development`; JS suite
   green on Node 26 (typecheck/lint/format/Jest, 242 tests). The on-device
