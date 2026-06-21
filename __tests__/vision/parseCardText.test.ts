@@ -272,3 +272,88 @@ describe('parseCardText — real spike captures', () => {
     expect(result).toEqual({ name: 'EILONWY Princess of Llyr' });
   });
 });
+
+/**
+ * Live device captures (2026-06-20) where the "tallest alphabetic line" heuristic
+ * picked the card's ability/flavor PROSE instead of its short title: on real
+ * captures a wrapped body line can carry a taller OCR frame than the name, so
+ * height alone is fooled. The fix: a card title/subtitle is short, while
+ * body/flavor/effect prose runs long — drop the over-long lines from title
+ * contention before ranking by height.
+ *
+ * IP-clean: real card NAMES + collector NUMBERS (facts); the long lines are
+ * SYNTHESIZED placeholder prose (≥7 words) given the tallest frame to reproduce
+ * the failure — never the copyrighted flavor/ability text.
+ */
+describe('parseCardText — long body prose must not beat the short title', () => {
+  test('Baloo #69: a long flavor line with the tallest frame does not win the name', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALOO', f(120, 500, 500, 130)), // title
+        line('Laid-Back Bear', f(120, 640, 420, 92)), // subtitle
+        // synthesized 7-word flavor line, framed TALLER than the title:
+        line(
+          'Lorem ipsum dolor sit amet consectetur adipiscing',
+          f(120, 900, 1800, 210),
+        ),
+        line('69/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '69',
+      name: 'BALOO Laid-Back Bear',
+    });
+  });
+
+  test('David Xanatos #184: a long effect line (tallest) does not win the name', () => {
+    const result = parseCardText(
+      ocr([
+        line('DAVID XANATOS', f(120, 500, 700, 145)),
+        line('Steel Clan Leader', f(120, 650, 500, 95)),
+        line(
+          'Lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(120, 900, 1800, 215),
+        ), // 8 words, tallest
+        line('184/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '184',
+      name: 'DAVID XANATOS Steel Clan Leader',
+    });
+  });
+
+  test('Promising Lead #162: an Action card — long effect text drops, type line drops, title resolves', () => {
+    const result = parseCardText(
+      ocr([
+        line('PROMISING LEAD', f(120, 500, 700, 150)),
+        line('Action', f(400, 660, 200, 70)), // type line — drops (too short relative to the tall name)
+        line(
+          'Lorem ipsum dolor sit amet consectetur adipiscing elit sed do',
+          f(120, 850, 1800, 220),
+        ), // 10 words, tallest
+        line('162/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '162',
+      name: 'PROMISING LEAD',
+    });
+  });
+
+  test('a card whose only alphabetic lines are all long prose still yields a name (no over-filtering)', () => {
+    // Degenerate safety: if NOTHING is title-like, fall back to all candidates
+    // rather than dropping the name wholesale (collector tier still anchors it).
+    const result = parseCardText(
+      ocr([
+        line(
+          'Lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(120, 500, 1800, 200),
+        ),
+        line('77/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result.collectorNumber).toBe('77');
+    expect(result.name).toBeDefined();
+  });
+});

@@ -38,6 +38,14 @@ const TRAILING_NUMBER = /\s*\d+\s*$/;
 /** A name candidate needs at least this many letters — excludes stat glyphs ("O4", "43"). */
 const MIN_NAME_LETTERS = 3;
 
+/**
+ * A title/subtitle is short; ability/flavor/effect PROSE runs long. Card names
+ * (and their versions) top out around five words; body lines run seven-plus. On
+ * real captures a wrapped body line can carry a TALLER OCR frame than the title,
+ * so the height heuristic alone is fooled — bound the word count first.
+ */
+const MAX_TITLE_WORDS = 6;
+
 /** A subtitle must be at least this tall relative to the name line… */
 const SUBTITLE_MIN_RATIO = 0.5;
 /** …and sit no further than this multiple of the name's height below it. */
@@ -49,6 +57,14 @@ const FRAMELESS_TITLE_LINES = 2;
 /** Count of ASCII letters in a string — the name-candidate gate. */
 const letterCount = (text: string): number =>
   (text.match(/[a-z]/gi) ?? []).length;
+
+/** Whitespace-separated word count — the title-vs-body discriminator. */
+const wordCount = (text: string): number =>
+  text.split(/\s+/).filter(Boolean).length;
+
+/** A short line that could be a title/subtitle (vs. long body/flavor/effect prose). */
+const isTitleLike = (line: OcrTextLine): boolean =>
+  wordCount(line.text) <= MAX_TITLE_WORDS;
 
 /** Flatten blocks to lines, falling back to a block's own text when it has none. */
 const flattenLines = (ocr: OcrResult): OcrTextLine[] =>
@@ -138,7 +154,14 @@ const parseName = (lines: OcrTextLine[]): string | undefined => {
     return undefined;
   }
 
-  const name = selectTitleLines(candidates)
+  // Prefer short, title-like lines: body/flavor/effect prose runs long and — on
+  // real captures — can carry a taller OCR frame than the name, fooling the
+  // height heuristic. Drop the over-long lines from title contention, but fall
+  // back to all candidates if none qualify (so a card is never left name-less).
+  const titleLike = candidates.filter(isTitleLike);
+  const titleCandidates = titleLike.length > 0 ? titleLike : candidates;
+
+  const name = selectTitleLines(titleCandidates)
     .map(line => line.text)
     .join(' ')
     .replace(/\s+/g, ' ')

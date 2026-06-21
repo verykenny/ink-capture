@@ -211,4 +211,80 @@ describe('createOcrCardRecognizer', () => {
       name: 'THOMAS Wide-Eyed Recruit',
     });
   });
+
+  test('live Baloo #69: a tall flavor line no longer beats the title — resolves over same-number decoys', async () => {
+    // The 2026-06-20 device failure end-to-end: before the parser fix the tall
+    // flavor prose won the name, so all #69 cards scored ~13–17% and the correct
+    // one (Baloo) was buried past the cap. Now the short title wins and resolves.
+    const baloo: Card = {
+      id: 'URR-69',
+      name: 'Baloo',
+      version: 'Laid-Back Bear',
+      setCode: 'URR',
+      collectorNumber: '69',
+      rarity: 'Common',
+      availableFinishes: ['normal', 'foil'],
+    };
+    const mulan69: Card = {
+      id: 'TFC-69',
+      name: 'Mulan',
+      version: 'Resourceful Recruit',
+      setCode: 'TFC',
+      collectorNumber: '69',
+      rarity: 'Super Rare',
+      availableFinishes: ['normal'],
+    };
+    const arthur69: Card = {
+      id: 'ROF-69',
+      name: 'Arthur',
+      version: 'Trained Swordsman',
+      setCode: 'ROF',
+      collectorNumber: '69',
+      rarity: 'Common',
+      availableFinishes: ['normal'],
+    };
+    const catalog69: CatalogReader = {
+      getAllCards: async () => [baloo, mulan69, arthur69],
+    };
+
+    const fr = (x: number, y: number, width: number, height: number) => ({
+      x,
+      y,
+      width,
+      height,
+    });
+    // Synthesized flavor prose (IP-clean) given the TALLEST frame, as the device read it.
+    const ocr: OcrResult = {
+      text: 'BALOO\nLaid-Back Bear\nLorem ipsum...\n69/204 EN 10',
+      blocks: [
+        {
+          text: 'BALOO\nLaid-Back Bear\nLorem ipsum...\n69/204 EN 10',
+          lines: [
+            { text: 'BALOO', frame: fr(120, 500, 500, 130) },
+            { text: 'Laid-Back Bear', frame: fr(120, 640, 420, 92) },
+            {
+              text: 'Lorem ipsum dolor sit amet consectetur adipiscing',
+              frame: fr(120, 900, 1800, 210),
+            },
+            { text: '69/204 EN 10', frame: fr(120, 1500, 300, 60) },
+          ],
+        },
+      ],
+    };
+
+    const recognizeText = jest.fn(async (_uri: string) => ocr);
+    const recognizer = createOcrCardRecognizer({
+      engine: { recognizeText },
+      matcher: createCardMatcher(catalog69),
+    });
+
+    const result = await recognizer.recognize({ uri: 'file:///tmp/baloo.jpg' });
+
+    expect(result.source).toEqual({
+      collectorNumber: '69',
+      name: 'BALOO Laid-Back Bear',
+    });
+    expect(result.candidates[0].card).toEqual(baloo);
+    expect(result.candidates[0].confidence).toBe(1);
+  });
 });
