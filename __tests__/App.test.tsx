@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import App from '../src/app/App';
 import { createCollectionStore } from '@state';
 import type { AppServices } from '@state';
@@ -63,4 +63,32 @@ test('first run with no cached catalog shows the indeterminate setup message', a
   ).toBeOnTheScreen();
   // The app is gated while downloading — the Collection screen is not mounted yet.
   expect(screen.queryByText('No cards yet.')).toBeNull();
+});
+
+test('offline first run shows the setup-needed gate, and Retry recovers to the Collection', async () => {
+  // No local cache; the first-run download fails once (offline) then succeeds —
+  // exactly the airplane-mode-then-reconnect path.
+  const sync = jest.fn(async () => ({ updated: true }));
+  sync.mockRejectedValueOnce(new Error('offline'));
+  render(
+    <App
+      services={makeFakeServices({
+        getAllCards: async () => [], // no cache to fall back to
+        sync,
+      })}
+    />,
+  );
+
+  // The setup-needed gate, never a spinner-forever or a crash.
+  expect(
+    await screen.findByText(
+      'Couldn’t download the card catalog. Check your connection and try again.',
+    ),
+  ).toBeOnTheScreen();
+
+  // Retry re-runs startup; sync now resolves → ready → the (empty) Collection.
+  fireEvent.press(screen.getByText('Retry'));
+
+  expect(await screen.findByText('No cards yet.')).toBeOnTheScreen();
+  expect(sync).toHaveBeenCalledTimes(2); // the failed attempt, then the retry
 });
