@@ -93,6 +93,43 @@ export const CARD_BILLY_BONES: Card = {
   availableFinishes: ['normal', 'foil'],
 };
 
+/**
+ * The D2 device-capture diagnostic cards (2026-06-20) — real NAMES + collector
+ * NUMBERS (facts), in catalog form (String(raw.number), no leading zeros) so the
+ * parser's normalized number lands on the matcher's exact tier. They drive the D3
+ * "do the four cards clear the 0.70 auto-confirm floor on a clean capture" gate.
+ * Hand-authored; NEVER bulk catalog data.
+ */
+export const CARD_GIZMODUCK: Card = {
+  id: 'SSK-105',
+  name: 'Gizmoduck',
+  version: 'Suited Up',
+  setCode: 'SSK',
+  collectorNumber: '105',
+  rarity: 'Rare',
+  availableFinishes: ['normal', 'foil'],
+};
+
+export const CARD_BALOO: Card = {
+  id: 'ITI-069',
+  name: 'Baloo',
+  version: 'Laid-Back Bear',
+  setCode: 'ITI',
+  collectorNumber: '69',
+  rarity: 'Common',
+  availableFinishes: ['normal', 'foil'],
+};
+
+export const CARD_DAVID_XANATOS: Card = {
+  id: 'AZS-184',
+  name: 'David Xanatos',
+  version: 'Steel Clan Leader',
+  setCode: 'AZS',
+  collectorNumber: '184',
+  rarity: 'Legendary',
+  availableFinishes: ['normal', 'foil'],
+};
+
 /** Build a NewCollectionEntry (pre-persistence) over sensible defaults. */
 export const newEntry = (
   overrides: Partial<NewCollectionEntry> = {},
