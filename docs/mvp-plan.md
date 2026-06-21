@@ -851,8 +851,9 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   simulator build SUCCEEDED; Android `:app:assembleDebug` SUCCESSFUL). The
   matcher stays unit-tested + unchanged; parser + recognizer are unit-tested
   (fake engine + the real matcher over a fixture catalog). **Manual real-card
-  acceptance is pending the on-device spike**; a low-confidence/empty read still
-  routes to the Confirm screen (never blocked).
+  acceptance PASSED on device (2026-06-21)** — see the D2/D3 status entry (10/10
+  cards resolved at the correct #1, 100% confidence); a low-confidence/empty read
+  still routes to the Confirm screen (never blocked).
 - **Size:** **L.** ML Kit Text Recognition: free, fully on-device (offline-first,
   no recurring cost), **cross-platform** (Apple Vision is iOS-only). The native
   ML Kit gate was cleared at kickoff.
