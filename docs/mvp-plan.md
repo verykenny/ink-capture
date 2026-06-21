@@ -312,11 +312,58 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
     **version**, and since the matcher key is `name + version`, a correct title +
     wrong subtitle scores _worse_ than the title alone (Boun: 29% vs ~100% with the
     right subtitle). Captured as **D3** below.
-- **Next action (recommended):** Task **D3** (`feature/recognition-confidence`) —
-  recognition confidence refinement (fix version/subtitle selection; fold the
-  exact collector-number match into confidence, margin-gated). The MVP loop is now
-  field-SAFE; D3 lifts good reads above the auto-confirm floor to cut the extra
-  manual tap. See §2 / the D3 task. (E1–E3 hardening remain after.)
+- **D3 recognition confidence refinement is implemented**
+  (`feature/recognition-confidence`, PR → `development` pending review) — lifts
+  correct reads above the 0.70 auto-confirm floor **without relaxing the
+  no-wrong-save guarantee**, all pure logic and test-first. What landed:
+  - **(B, the dominant drag) version/subtitle selection in `parseCardText`:** three
+    predicates layer on top of the existing height/gap gates in `selectTitleLines`
+    (the tallest-ALL-CAPS name pick and the ≤6-word title pre-filter are unchanged) —
+    a **type-line ceiling** (the subtitle must sit strictly above the first
+    `Storyborn • …`/`Action`/… line), and exclusion of **type-line-** and
+    **artist-credit-shaped** lines (a leading `> » · • →` glyph or a co-artist
+    `Name / Name` slash). On clean fixtures these are inert (the gap gate already
+    excludes the same lines); they only bite when a credit/ability fragment lands
+    inside the gap window — the live failure where a correct title + wrong subtitle
+    scored _worse_ than the title alone (Boun 29% → ~100%).
+  - **(small guard) BALOO trailing-digit:** `TRAILING_NUMBER` narrowed from
+    `\s*\d+\s*$` to `(?:\s+\d+|\d{2,})\s*$` — a single digit fused to letters
+    (`BALO0`, an O/0 misread) is kept; a whitespace-separated digit or a 2+-digit run
+    (`MADRIGAL22`) is still stripped.
+  - **(A) collector-number corroboration — in `decideRecognition` ONLY (the resolved
+    judgment call: option ii, NOT an affine boost in `rankExactTier`):** an additive
+    `corroboratedMin` (0.55) relaxes the floor when the scan's collector number
+    equals #1's. The **margin gate is unchanged** (still on raw similarities), so
+    relaxing _how high_ #1 must score never relaxes _how much_ it must beat #2 —
+    same-number decoys (Boun/Billy #104) stay ambiguous. `matchEntries` /
+    `rankExactTier` stay pure and **unchanged** (the D2 boundary), and
+    `Candidate.confidence` still means raw name similarity (ConfirmSheet's "% match"
+    stays honest).
+  - **Thresholds (recorded):** `confidentMin = 0.70` and `ambiguityMargin = 0.15`
+    are **unchanged**; `corroboratedMin = 0.55` is the only new constant — no global
+    floor drop. The `topN = 10` is unchanged.
+  - **The unit-3 gate result:** on a **clean** capture all four diagnostic cards
+    (GIZMODUCK #105, BOUN #104, BALOO #69, DAVID XANATOS #184) already clear 0.70 at
+    confidence 1.0 via (B) alone — so (A) is the safety margin for the **near-clean**
+    band [0.55, 0.70), not a requirement for clean reads.
+  - **Tested:** test-first throughout (red → green). Full JS gate green on Node 26
+    (lint `--max-warnings=0` / format / typecheck / **326 tests**): 14 new parser
+    tests (the live failure geometry + the four cards' real shapes + the BALOO guard
+    - a `\b`-boundary guard), 7 `decideRecognition` boundary tests, and an end-to-end
+      `recognitionConfidence` spec (clean captures clear 0.70 + a polluted-capture case
+      that is red on the pre-fix parser). The 23 existing parser tests and all 14 D2
+      policy tests stay green. A pre-PR multi-agent adversarial review of the diff
+      surfaced only two graceful, prime-directive-safe nits (both addressed).
+  - **On-device re-validation — PENDING (DoD native exception).** No device was
+    available, so the four cards' fixtures are structurally-representative of the
+    documented failure modes, and the device run (the four cards auto-confirming
+    ≥ 0.70 → Confirm, plus a mixed-scan soak for zero wrong auto-saves) is the
+    **remaining manual acceptance step**, to be captured with `DEBUG_RECOGNITION`
+    screenshots before/at merge.
+- **Next action (recommended):** complete the **D3 on-device acceptance** (above),
+  then **E1–E3 hardening** (edit/remove + manual add, error/offline/empty states,
+  collection search + stats). Capture-quality / **multi-frame** remains the next
+  reliability lever (still deferred; tracked separately).
 
 **Settled decisions (don't re-litigate):**
 
@@ -762,6 +809,17 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 
 #### D3. Recognition confidence refinement — `feature/recognition-confidence`
 
+- **Status: IMPLEMENTED on `feature/recognition-confidence`; PR → `development`
+  pending review.** Pure logic, test-first, full JS gate green on Node 26 (326
+  tests). See the §0 D3 entry for the full breakdown. **Decisions recorded:** the
+  number-trust lives **only in `decideRecognition`** (an additive `corroboratedMin`
+  = 0.55 floor relaxation, margin gate untouched) — `matchEntries` / `rankExactTier`
+  stay pure and **unchanged** (the D2 boundary), and there is **no affine boost** in
+  `rankExactTier` (the `conf = α + (1−α)·nameSim` option was rejected as unsafe).
+  `confidentMin = 0.70` / `ambiguityMargin = 0.15` / `topN = 10` are **unchanged**;
+  0.55 is the only new threshold. **On-device re-validation is the remaining
+  acceptance step** (DoD native exception — no device was available; fixtures are
+  structurally-representative of the documented failure modes).
 - **Why:** D2 made recognition **field-SAFE** (no wrong auto-saves) but confidence
   is systematically capped below the 0.70 floor, so correct reads route to the
   manual pick (one extra tap) instead of auto-confirming. Surfaced by the D2
@@ -788,10 +846,14 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   pricing.
 - **Depends on:** D2.
 - **Acceptance:** the four diagnostic cards **auto-confirm (≥ 0.70) on a clean
-  capture**; thresholds re-tuned against the diagnostics; the `matchEntries`/A3
-  boundary call recorded; pure logic test-first; on-device re-validation in the PR.
-- **Priority:** **(A) > (B)** — (A) is the dominant confidence drag and may largely
-  subsume (B). **Size:** **M.**
+  capture** — **met on fixtures** (4/4 at confidence 1.0 through the real chain);
+  thresholds recorded (0.70 / 0.15 unchanged, 0.55 added); the `matchEntries`/A3
+  boundary call recorded; pure logic test-first. **On-device re-validation (the four
+  cards auto-confirming + a mixed-scan soak for zero wrong saves) is the remaining
+  manual acceptance**, to attach to the PR with `DEBUG_RECOGNITION` evidence.
+- **Priority:** version/subtitle selection > collector-number corroboration — the
+  parser fix is the dominant confidence drag and largely subsumes the number credit
+  (on clean captures the four cards clear 0.70 without it). **Size:** **M.**
 
 ### Milestone E — Hardening (mostly v1)
 
