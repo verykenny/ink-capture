@@ -28,3 +28,21 @@ export interface Card {
 export const cardDisplayTitle = (
   card: Pick<Card, 'name' | 'version'>,
 ): string => (card.version ? `${card.name} — ${card.version}` : card.name);
+
+/**
+ * The meta line for a card: `setCode · #collectorNumber · rarity`, joining ONLY
+ * the non-empty segments. An off-catalog manual card may carry empty
+ * setCode/collectorNumber/rarity (a name is all that's required), so this yields
+ * `''` for a name-only card and never renders a stray separator or bare `#`. The
+ * single source of truth for the meta join across the UI.
+ */
+export const formatCardMeta = (
+  card: Pick<Card, 'setCode' | 'collectorNumber' | 'rarity'>,
+): string =>
+  [
+    card.setCode,
+    card.collectorNumber ? `#${card.collectorNumber}` : '',
+    card.rarity,
+  ]
+    .filter(segment => segment.length > 0)
+    .join(' · ');

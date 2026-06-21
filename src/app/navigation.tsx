@@ -20,6 +20,7 @@ import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
 import { EditEntryScreen } from '@ui/collection/EditEntryScreen';
 import { ScanScreen } from '@ui/scan/ScanScreen';
 import { CardSearchScreen } from '@ui/scan/CardSearchScreen';
+import { ManualAddScreen } from '@ui/scan/ManualAddScreen';
 import { ConfirmSheet } from '@ui/scan/ConfirmSheet';
 import type { RootStackParamList } from '@ui/navigationTypes';
 
@@ -49,6 +50,11 @@ export function RootNavigator(): React.JSX.Element {
         name="CardSearch"
         component={CardSearchScreen}
         options={{ title: 'Pick the Card' }}
+      />
+      <Stack.Screen
+        name="ManualAdd"
+        component={ManualAddScreen}
+        options={{ title: 'Add a Card' }}
       />
       <Stack.Screen
         name="Confirm"

@@ -27,7 +27,12 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CONDITIONS, FINISHES, cardDisplayTitle } from '@domain';
+import {
+  CONDITIONS,
+  FINISHES,
+  cardDisplayTitle,
+  formatCardMeta,
+} from '@domain';
 import type { Condition, Finish } from '@domain';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
@@ -46,6 +51,9 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
   const [quantity, setQuantity] = useState(1);
   const [saving, setSaving] = useState(false);
 
+  // Empty for a name-only manual card → the meta line is suppressed entirely.
+  const meta = formatCardMeta(card);
+
   const onAdd = useCallback(async () => {
     setSaving(true);
     try {
@@ -62,9 +70,7 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.cardTitle}>{cardDisplayTitle(card)}</Text>
-      <Text style={styles.cardMeta}>
-        {card.setCode} · #{card.collectorNumber} · {card.rarity}
-      </Text>
+      {meta ? <Text style={styles.cardMeta}>{meta}</Text> : null}
       {confidence !== undefined ? (
         <Text style={styles.confidence}>
           {Math.round(confidence * 100)}% match
