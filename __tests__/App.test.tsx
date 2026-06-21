@@ -22,14 +22,17 @@ import type { CatalogService } from '@services';
 import { TestSqliteDatabase } from './persistence/testDatabase';
 import { CARD_ELSA } from './fixtures/cards';
 
-const makeFakeServices = (): AppServices => {
+const makeFakeServices = (
+  catalogOverrides: Partial<CatalogService> = {},
+): AppServices => {
   const db = new TestSqliteDatabase();
-  const persistence = createPersistenceService(db); // initialize() runs init()
+  const persistence = createPersistenceService(db); // the init store runs init()
   const repo = createCollectionRepository(db);
   const catalog: CatalogService = {
     sync: async () => ({ updated: false }),
-    getAllCards: async () => [CARD_ELSA],
+    getAllCards: async () => [CARD_ELSA], // a cached catalog → boots straight through
     findByCollectorNumber: async () => null,
+    ...catalogOverrides,
   };
   return {
     persistence,
@@ -44,4 +47,20 @@ test('boots through the loading gate to the Collection screen', async () => {
   render(<App services={makeFakeServices()} />);
   // The injected repository is empty, so the Collection screen shows its empty state.
   expect(await screen.findByText('No cards yet.')).toBeOnTheScreen();
+});
+
+test('first run with no cached catalog shows the indeterminate setup message', async () => {
+  render(
+    <App
+      services={makeFakeServices({
+        getAllCards: async () => [], // no local cache → first-run download
+        sync: () => new Promise<never>(() => {}), // network in flight, never settles
+      })}
+    />,
+  );
+  expect(
+    await screen.findByText('Setting up the card catalog… (first run only)'),
+  ).toBeOnTheScreen();
+  // The app is gated while downloading — the Collection screen is not mounted yet.
+  expect(screen.queryByText('No cards yet.')).toBeNull();
 });

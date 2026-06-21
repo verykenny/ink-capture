@@ -1,12 +1,13 @@
 /**
  * Composition root — where the abstract `AppServices` graph is built from
- * concrete implementations and started.
+ * concrete implementations.
  *
  * `createAppServices` wires the real op-sqlite database, the persistence service
  * + repository, the catalog service (over `fetch`), the collection store, and a
- * placeholder recognizer. `initialize` runs the one-time startup sequence behind
- * the App's loading gate. `overrides` and the `services` prop on `App` are the
- * test seams: fakes are injected so no real DB, network, or native runs in Jest.
+ * placeholder recognizer. The one-time startup *sequence* now lives in the
+ * `appInitStore` state machine (`@state`), which `App` owns and drives behind its
+ * gate. `overrides` and the `services` prop on `App` are the test seams: fakes
+ * are injected so no real DB, network, or native runs in Jest.
  *
  * Only this module imports concrete services — the UI and state layers depend on
  * the interfaces (`@services`) and the store/context (`@state`).
@@ -67,21 +68,4 @@ export const createAppServices = (
     collectionStore,
     ...overrides,
   };
-};
-
-/**
- * One-time startup, run behind the loading gate:
- *   1. apply migrations,
- *   2. sync the catalog (first-run download; no-op when already current) so the
- *      matcher has cards to rank against,
- *   3. load the persisted collection into the store.
- *
- * The recognizer is constructed in `createAppServices` (the matcher reads the
- * catalog lazily), so there is no demo-card step here. Rich first-run/offline/
- * no-match UX is E2 — an empty read still routes to Confirm's no-match branch.
- */
-export const initialize = async (services: AppServices): Promise<void> => {
-  await services.persistence.init();
-  await services.catalog.sync();
-  await services.collectionStore.getState().load();
 };
