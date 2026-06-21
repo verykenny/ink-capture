@@ -16,8 +16,10 @@ export type RootStackParamList = {
   Collection: undefined;
   Scan: undefined;
   // The unified manual-pick / search screen. An ambiguous scan seeds it with the
-  // scan's top-N candidates; a manual entry searches by name. Pick → Confirm.
-  CardSearch: { seed?: RecognitionCandidate[] };
+  // scan's top-N candidates; a manual entry searches by name. `reason: 'no-match'`
+  // marks a scan that read nothing, so the empty box explains the arrival rather
+  // than showing the generic prompt. Pick → Confirm.
+  CardSearch: { seed?: RecognitionCandidate[]; reason?: 'no-match' };
   // A chosen card (+ its scan confidence, when it came from a confident scan)
   // feeds the one confirm+save screen — whether from a confident scan, an
   // ambiguous top-N pick, or a manual search. Confidence is a display hint only.

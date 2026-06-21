@@ -143,13 +143,15 @@ test('an ambiguous read (the Boun #104 case) routes to CardSearch seeded with th
   await waitFor(() => expect(unlink).toHaveBeenCalledWith(CAPTURE_PATH));
 });
 
-test('an empty read routes to an empty CardSearch (manual search), not Confirm', async () => {
+test('an empty read routes to CardSearch with no-match context (manual search), not Confirm', async () => {
   renderScreen(jest.fn(async () => ({ candidates: [] })));
 
   fireEvent.press(screen.getByText('Capture'));
 
   await waitFor(() =>
-    expect(navigation.navigate).toHaveBeenCalledWith('CardSearch', {}),
+    expect(navigation.navigate).toHaveBeenCalledWith('CardSearch', {
+      reason: 'no-match',
+    }),
   );
   expect(navigation.navigate).not.toHaveBeenCalledWith(
     'Confirm',

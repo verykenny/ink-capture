@@ -9,4 +9,5 @@
  */
 
 export * from './collectionStore';
+export * from './appInitStore';
 export * from './appServices';

@@ -11,7 +11,9 @@
  *
  * The fuzzy tier ranks whole normalized name+version keys (a normalized_name
  * prefilter is deferred), so search works best on a full-ish name; a near-miss
- * still ranks. When the box is empty the seed (or the prompt) shows.
+ * still ranks. When the box is empty the seed shows; with no seed, a scan that
+ * read nothing (`reason: 'no-match'`) explains the arrival, otherwise the generic
+ * prompt shows.
  *
  * @format
  */
@@ -38,6 +40,7 @@ export function CardSearchScreen({
   const matcher = useMemo(() => createCardMatcher(catalog), [catalog]);
 
   const seed = route.params?.seed;
+  const isNoMatch = route.params?.reason === 'no-match';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<RecognitionCandidate[]>(seed ?? []);
 
@@ -79,7 +82,9 @@ export function CardSearchScreen({
 
   const emptyLabel =
     query.trim() === ''
-      ? 'Search for a card by name.'
+      ? isNoMatch
+        ? 'We couldn’t read that card — search for it by name.'
+        : 'Search for a card by name.'
       : 'No matches — try the card’s full name.';
 
   return (

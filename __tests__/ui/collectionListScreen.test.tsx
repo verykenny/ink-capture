@@ -70,11 +70,17 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-test('shows the empty state when the collection is empty', async () => {
+test('shows the full empty state (title + hint) when the collection is empty', async () => {
   const { db, services } = await buildServices(false);
   renderScreen(services);
+  // The empty collection reads as an intentional, friendly state — title plus
+  // the hint that points at the same Scan CTA. Locked against regression so the
+  // empty path never degrades to a blank screen.
   // findBy flushes the async catalog lookup (useCardLookup) inside act().
   expect(await screen.findByText('No cards yet.')).toBeOnTheScreen();
+  expect(
+    screen.getByText('Scan a card to start your collection.'),
+  ).toBeOnTheScreen();
   await db.close();
 });
 
