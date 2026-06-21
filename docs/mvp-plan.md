@@ -471,11 +471,33 @@ treat as the default unless a human overrides:
   the inline composition root, and the `debugButton` style were removed when
   `App.tsx` was replaced by the real navigation/composition root. No `TODO(C2)`
   markers remain.
-- **E1 (from B3 review) — open:** `CollectionRepository.update()` can change
-  `finish`/`condition`, which may move a row onto another stack's identity and hit
-  the `UNIQUE (card_id, finish, condition)` index — it **throws rather than
-  merging** today. Acceptable now (integrity is protected), but E1 (edit/remove)
-  must handle an edit-into-existing-stack as a merge, not an error.
+- **E1 (from B3 review) — ✅ done (`feature/collection-edit`):** see the **E1
+  decisions** record below. `update()` now MERGES an edit-into-existing-stack
+  transactionally instead of throwing on the `UNIQUE (card_id, finish, condition)`
+  index.
+
+> **E1 decisions (ratified, `feature/collection-edit`):**
+>
+> - **Edit-merge supersedes the B3 reject contract — DONE.** `update()` now MERGES
+>   an edit that moves a row onto an existing `(card_id, finish, condition)` stack
+>   — target quantity += source quantity, source deleted, one transaction —
+>   instead of throwing `UNIQUE`. Signature unchanged; reuses B1's
+>   `resolveAddition`; the old "rejects (UNIQUE)" test is intentionally replaced by
+>   a merge test. Closes the B3-review carry-over.
+> - **Off-catalog manual cards (the E2-deferred fallback).** `manual:<rowid>`
+>   synthetic id from a new `custom_cards` table (migration 003); name is the only
+>   required field; provenance implicit in the id prefix — **no `Card`/
+>   `CollectionEntry` schema, identity-tuple, or UNIQUE-index change**. Mint-fresh
+>   per add. New additive `CustomCardRepository` exposed via a new required
+>   `AppServices.customCards`; `useCardLookup` resolves from catalog + custom
+>   store; `ConfirmSheet` gains an empty-meta guard. Manual cards aren't
+>   catalog-searchable (no-match fallback only).
+> - **Deliberate A3/B1-boundary deltas:** `update()` semantics (throw→merge)
+>   behind its unchanged signature; additive off-catalog storage +
+>   `AppServices.customCards`; new `collectionStore` `update`/`remove`. No
+>   recognition-pipeline / `CardRecognizer` / `CatalogService` / `HttpJsonClient`
+>   changes.
+
 - **B2 — ✅ done:** `react-native-config` (^1.6.1) added so bare RN reads an
   optional `CATALOG_API_BASE_URL` override from `.env` (ask-first gate cleared by
   the user). Isolated to `catalogConfig.ts`, mocked in Jest; the canonical URL is

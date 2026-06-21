@@ -77,12 +77,38 @@ const migration002 = async (db: SqliteDatabase): Promise<void> => {
 };
 
 /**
+ * Migration 003 — the off-catalog ("manual") card store (E1).
+ *
+ * Holds cards a user adds by hand when a scan finds nothing in LorcanaJSON. Kept
+ * SEPARATE from `catalog_cards` (the IP guardrail: the catalog cache stays
+ * pristine, upstream-sourced data only). A row's INTEGER PK mints the synthetic
+ * `manual:<rowid>` Card id; `name` is the only required field, the rest are
+ * optional and map to empty Card fields. `available_finishes` is JSON text with a
+ * full-set default so a name-only manual card is still addable in either finish.
+ */
+const migration003 = async (db: SqliteDatabase): Promise<void> => {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS custom_cards (
+      id                 INTEGER PRIMARY KEY,
+      name               TEXT    NOT NULL,
+      version            TEXT,
+      set_code           TEXT,
+      collector_number   TEXT,
+      rarity             TEXT,
+      available_finishes TEXT    NOT NULL DEFAULT '["normal","foil"]',
+      image_url          TEXT,
+      created_at         TEXT    NOT NULL
+    )`,
+  );
+};
+
+/**
  * Ordered, forward-only migrations. Index 0 is schema version 1, index 1 is
  * version 2, and so on; the runner advances PRAGMA user_version to the array
  * length once all pending migrations have applied.
  */
 export const MIGRATIONS: ReadonlyArray<(db: SqliteDatabase) => Promise<void>> =
-  [migration001, migration002];
+  [migration001, migration002, migration003];
 
 const readUserVersion = async (db: SqliteDatabase): Promise<number> => {
   const result = await db.execute('PRAGMA user_version');

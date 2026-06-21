@@ -17,6 +17,7 @@ import type { AppServices } from '@state';
 import {
   StubCardRecognizer,
   createCollectionRepository,
+  createCustomCardRepository,
   createPersistenceService,
 } from '@services';
 import type { CatalogService } from '@services';
@@ -46,6 +47,7 @@ const buildServices = async (
     persistence: createPersistenceService(db),
     repo,
     catalog,
+    customCards: createCustomCardRepository(db),
     recognizer: new StubCardRecognizer({ candidates: [] }),
     collectionStore,
   };
@@ -105,5 +107,19 @@ test('the Scan CTA navigates to the Scan route', async () => {
   // findBy settles the async catalog lookup before we assert/press.
   fireEvent.press(await screen.findByText('Scan a card'));
   expect(navigation.navigate).toHaveBeenCalledWith('Scan');
+  await db.close();
+});
+
+test('tapping a row navigates to EditEntry with that entry’s id', async () => {
+  const { db, services } = await buildServices(true);
+  renderScreen(services);
+  // The seeded row resolves its name; tapping it opens the edit screen.
+  fireEvent.press(await screen.findByText('Elsa — Snow Queen'));
+  expect(navigation.navigate).toHaveBeenCalledWith('EditEntry', {
+    entryId: expect.any(String),
+  });
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
   await db.close();
 });

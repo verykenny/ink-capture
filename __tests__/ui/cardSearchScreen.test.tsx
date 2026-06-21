@@ -132,6 +132,28 @@ test('a no-match arrival shows the “couldn’t read that card” prompt when t
   expect(screen.queryByText('Search for a card by name.')).toBeNull();
 });
 
+test('offers the manual-add fallback when there is nothing to pick, routing to ManualAdd', () => {
+  const route = {
+    key: 'CardSearch-1',
+    name: 'CardSearch',
+    params: { reason: 'no-match' },
+  } as unknown as Props['route'];
+  renderScreen(buildServices(), route);
+
+  fireEvent.press(screen.getByText('Can’t find it? Add manually'));
+  expect(navigation.navigate).toHaveBeenCalledWith('ManualAdd');
+});
+
+test('hides the manual-add fallback when there are seeded results to pick', () => {
+  const seed: RecognitionCandidate[] = [
+    { card: CARD_BILLY_BONES, confidence: 0.26 },
+    { card: CARD_BOUN, confidence: 0.24 },
+  ];
+  renderScreen(buildServices(), routeWith(seed));
+
+  expect(screen.queryByText('Can’t find it? Add manually')).toBeNull();
+});
+
 test('a query that matches nothing shows the "try the full name" guidance, not the prompt', async () => {
   renderScreen(buildServices(), routeWith());
 

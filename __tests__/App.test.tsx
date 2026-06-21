@@ -16,6 +16,7 @@ import type { AppServices } from '@state';
 import {
   StubCardRecognizer,
   createCollectionRepository,
+  createCustomCardRepository,
   createPersistenceService,
 } from '@services';
 import type { CatalogService } from '@services';
@@ -38,6 +39,7 @@ const makeFakeServices = (
     persistence,
     repo,
     catalog,
+    customCards: createCustomCardRepository(db),
     recognizer: new StubCardRecognizer({ candidates: [] }),
     collectionStore: createCollectionStore(repo),
   };

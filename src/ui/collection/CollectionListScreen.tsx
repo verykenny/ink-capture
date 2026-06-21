@@ -57,7 +57,14 @@ export function CollectionListScreen({ navigation }: Props): React.JSX.Element {
           keyExtractor={entry => entry.id}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() =>
+                navigation.navigate('EditEntry', { entryId: item.id })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${titleFor(item, lookup)}`}
+            >
               <View style={styles.rowMain}>
                 <Text style={styles.rowTitle}>{titleFor(item, lookup)}</Text>
                 <Text style={styles.rowMeta}>
@@ -65,7 +72,7 @@ export function CollectionListScreen({ navigation }: Props): React.JSX.Element {
                 </Text>
               </View>
               <Text style={styles.qty}>×{item.quantity}</Text>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}

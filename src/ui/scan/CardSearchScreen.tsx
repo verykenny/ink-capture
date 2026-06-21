@@ -19,7 +19,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Card, RecognitionCandidate } from '@domain';
 import { createCardMatcher } from '@services';
@@ -103,6 +109,17 @@ export function CardSearchScreen({
         onPick={onPick}
         emptyLabel={emptyLabel}
       />
+      {results.length === 0 ? (
+        // Nothing to pick (a no-match arrival or a search that found nothing) →
+        // offer the off-catalog manual add as the fallback.
+        <TouchableOpacity
+          style={styles.manualAdd}
+          onPress={() => navigation.navigate('ManualAdd')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.manualAddText}>Can’t find it? Add manually</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -119,5 +136,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#3b5bfd',
     fontSize: 16,
+  },
+  manualAdd: {
+    margin: 16,
+    alignItems: 'center',
+  },
+  manualAddText: {
+    fontSize: 15,
+    color: '#3b5bfd',
+    fontWeight: '600',
   },
 });

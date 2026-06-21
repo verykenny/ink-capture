@@ -28,8 +28,19 @@ import {
   createPersistenceService,
 } from '@services';
 import { CONDITIONS, FINISHES } from '@domain';
+import type { Card } from '@domain';
 import { TestSqliteDatabase } from '../persistence/testDatabase';
 import { CARD_ELSA, CARD_ELSA_ENCHANTED } from '../fixtures/cards';
+
+/** A name-only off-catalog ("manual") card: empty set/number/rarity. */
+const MANUAL_CARD: Card = {
+  id: 'manual:1',
+  name: 'Homemade Hero',
+  setCode: '',
+  collectorNumber: '',
+  rarity: '',
+  availableFinishes: ['normal', 'foil'],
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Confirm'>;
 type ConfirmParams = RootStackParamList['Confirm'];
@@ -88,6 +99,17 @@ test('shows the chosen card, every finish/condition option, and the confidence h
   for (const condition of CONDITIONS) {
     expect(screen.getByText(condition)).toBeOnTheScreen();
   }
+  await db.close();
+});
+
+test('a name-only manual card renders its name with no meta line (no stray separators)', async () => {
+  const { db, services } = await buildServices();
+  renderSheet(services, { card: MANUAL_CARD });
+
+  expect(screen.getByText('Homemade Hero')).toBeOnTheScreen();
+  // Empty set/number/rarity → the meta line is suppressed: no '·', no '#'.
+  expect(screen.queryByText(/·/)).toBeNull();
+  expect(screen.queryByText(/#/)).toBeNull();
   await db.close();
 });
 
