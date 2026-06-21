@@ -104,10 +104,17 @@ describe('createAppInitStore', () => {
       catalog,
       collectionStore,
     });
+    const seen: AppInitPhase[] = [];
+    const unsub = store.subscribe(s => seen.push(s.phase));
 
     await store.getState().start();
     await flush(); // let the fire-and-forget background refresh settle
+    unsub();
 
+    // The whole point of the fix: a cached launch goes straight starting → ready
+    // and must NOT flash 'first-run-downloading' (which would mean it consulted
+    // the network gate before reading the local cache).
+    expect(seen).toEqual(['starting', 'ready']);
     expect(store.getState().phase).toBe('ready'); // NOT 'error'
     expect(store.getState().error).toBeUndefined();
     // The cache is intact and the persisted collection was loaded into the store.
