@@ -139,6 +139,54 @@ describe('createAppInitStore', () => {
     await db.close();
   });
 
+  test('first run with no cache and no network → first-run-failed, with the error recorded', async () => {
+    const { db, collectionStore } = await makeCollection(false);
+    const catalog = fakeCatalog({
+      getAllCards: jest.fn(async () => []), // no local cache...
+      sync: jest.fn(async () => {
+        throw new Error('offline'); // ...and no network to download one
+      }),
+    });
+    const store = createAppInitStore({
+      persistence: okPersistence(),
+      catalog,
+      collectionStore,
+    });
+
+    await store.getState().start();
+
+    // offline-no-cache and a first-run download error are the SAME recoverable
+    // state — a setup-needed gate, not a hard `error`.
+    expect(store.getState().phase).toBe('first-run-failed');
+    expect(store.getState().error).toMatch(/offline/);
+    await db.close();
+  });
+
+  test('retry() after a first-run failure recovers to ready once the network returns', async () => {
+    const { db, collectionStore } = await makeCollection(false);
+    const sync = jest.fn(async () => ({ updated: true }));
+    sync.mockRejectedValueOnce(new Error('offline')); // fails once, then succeeds
+    const catalog = fakeCatalog({
+      getAllCards: jest.fn(async () => []),
+      sync,
+    });
+    const store = createAppInitStore({
+      persistence: okPersistence(),
+      catalog,
+      collectionStore,
+    });
+
+    await store.getState().start();
+    expect(store.getState().phase).toBe('first-run-failed');
+
+    await store.getState().retry();
+
+    expect(store.getState().phase).toBe('ready');
+    expect(store.getState().error).toBeUndefined();
+    expect(sync).toHaveBeenCalledTimes(2); // the failed attempt, then the retry
+    await db.close();
+  });
+
   test('a migration/DB failure short-circuits to error before any cache or network read', async () => {
     const { db, collectionStore } = await makeCollection(false);
     const catalog = fakeCatalog();

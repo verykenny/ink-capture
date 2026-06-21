@@ -11,8 +11,9 @@
  * and runs BEFORE any network call, so a launch with a cached catalog boots
  * straight to `ready` and the network `sync()` becomes a fail-soft background
  * refresh — offline-with-cache never blocks or crashes. Only a first run with no
- * cache awaits the network, and its failure is a recoverable `first-run-failed`
- * with a retry (added in the next unit; for now it surfaces the error gate).
+ * cache awaits the network, and its failure (offline OR a download error — the
+ * same case) is a recoverable `first-run-failed` that `retry()` clears once the
+ * network returns.
  *
  * `sync()` and the HTTP client are unchanged — they correctly throw; this store
  * owns the catch.
@@ -95,8 +96,9 @@ export const createAppInitStore = ({
         await catalog.sync();
         set({ phase: 'ready', error: undefined });
       } catch (error) {
-        // A recoverable first-run failure (retry UX lands in the next unit).
-        set({ phase: 'error', error: messageOf(error) });
+        // Recoverable: offline-no-cache and a download error are the same
+        // setup-needed state, cleared by `retry()` once the network returns.
+        set({ phase: 'first-run-failed', error: messageOf(error) });
       }
     };
 

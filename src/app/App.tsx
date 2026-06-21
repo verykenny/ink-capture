@@ -9,14 +9,20 @@
  *
  * The init store (not `initialize()`) owns the startup sequence now: it checks
  * the LOCAL catalog cache before any network call, so an offline launch with a
- * cached catalog boots straight through. Richer first-run-failed/retry UX builds
- * on this gate in the following units.
+ * cached catalog boots straight through. A first run with no network shows a
+ * setup-needed gate with a Retry that recovers once back online.
  *
  * @format
  */
 
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useStore } from 'zustand';
@@ -30,10 +36,31 @@ import { RootNavigator } from './navigation';
 function StartupGate({
   phase,
   error,
+  onRetry,
 }: {
   phase: AppInitPhase;
   error?: string;
+  onRetry: () => void;
 }): React.JSX.Element {
+  if (phase === 'first-run-failed') {
+    // Offline-no-cache or a download error — the same recoverable case: there is
+    // no cached catalog to fall back to, so offer a clear path to try again.
+    return (
+      <View style={styles.gate}>
+        <Text style={styles.gateMessage}>
+          Couldn’t download the card catalog. Check your connection and try
+          again.
+        </Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={onRetry}
+          accessibilityRole="button"
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   if (phase === 'error') {
     return (
       <View style={styles.gate}>
@@ -77,7 +104,14 @@ function App({ services }: { services?: AppServices }): React.JSX.Element {
   if (phase !== 'ready') {
     return (
       <SafeAreaProvider>
-        <StartupGate phase={phase} error={error} />
+        <StartupGate
+          phase={phase}
+          error={error}
+          onRetry={() => {
+            // eslint-disable-next-line no-void -- fire-and-forget; the store captures failures
+            void initStore.getState().retry();
+          }}
+        />
       </SafeAreaProvider>
     );
   }
@@ -118,6 +152,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
+  },
+  retryButton: {
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+    backgroundColor: '#3b5bfd',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
