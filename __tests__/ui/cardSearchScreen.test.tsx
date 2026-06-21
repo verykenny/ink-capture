@@ -117,6 +117,21 @@ test('shows the search prompt when there is neither a seed nor a query', () => {
   expect(screen.getByText('Search for a card by name.')).toBeOnTheScreen();
 });
 
+test('a no-match arrival shows the “couldn’t read that card” prompt when the box is empty', () => {
+  const route = {
+    key: 'CardSearch-1',
+    name: 'CardSearch',
+    params: { reason: 'no-match' },
+  } as unknown as Props['route'];
+  renderScreen(buildServices(), route);
+
+  expect(
+    screen.getByText('We couldn’t read that card — search for it by name.'),
+  ).toBeOnTheScreen();
+  // The no-match context replaces the generic prompt, not adds to it.
+  expect(screen.queryByText('Search for a card by name.')).toBeNull();
+});
+
 test('a query that matches nothing shows the "try the full name" guidance, not the prompt', async () => {
   renderScreen(buildServices(), routeWith());
 

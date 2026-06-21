@@ -170,7 +170,9 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
           navigation.navigate('CardSearch', { seed: decision.candidates });
           break;
         case 'none':
-          navigation.navigate('CardSearch', {});
+          // Nothing read — route to manual search with no-match context so the
+          // empty box explains why the user landed here.
+          navigation.navigate('CardSearch', { reason: 'no-match' });
           break;
       }
     } finally {
