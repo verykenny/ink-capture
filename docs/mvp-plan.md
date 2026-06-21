@@ -363,27 +363,36 @@ lines…`). Fix: when a type line is found below the name, the **version is the
     confidence 1.0 via (B) alone — so (A) is the safety margin for the **near-clean**
     band [0.55, 0.70), not a requirement for clean reads.
   - **Tested:** test-first throughout (red → green). Full JS gate green on Node 26
-    (lint `--max-warnings=0` / format / typecheck / **331 tests**): the parser suite
-    (failure geometry, the BALOO guard, a `\b`-boundary guard, and a **real
-    device-captures suite** grounded in the 2026-06-21 `DEBUG_RECOGNITION` output —
-    the three character cards recover `NAME version`, the Action card yields the bare
-    name), 7 `decideRecognition` boundary tests, and an end-to-end
-    `recognitionConfidence` spec (clean captures clear 0.70, a polluted-capture case,
-    and an Action-card-over-same-number-decoy case — all auto-confirm). The
-    type-line-anchored selection is verified red on the prior height-gate parser. A
-    pre-PR multi-agent adversarial review surfaced only two graceful,
-    prime-directive-safe nits (both addressed).
-  - **On-device captures received (2026-06-21) and folded in.** The first device run
-    of the field build surfaced the small-printed-version failure above; the parser
-    is reworked against that real geometry and the four cards now resolve correctly
-    on it in test. **Remaining manual acceptance (DoD native exception):** an
-    on-device run of the reworked build — the four cards auto-confirming (≥ 0.70 →
-    Confirm) plus a mixed-scan soak for **zero wrong auto-saves** — to capture with
-    `DEBUG_RECOGNITION` screenshots before/at merge.
-- **Next action (recommended):** complete the **D3 on-device acceptance** (above),
-  then **E1–E3 hardening** (edit/remove + manual add, error/offline/empty states,
-  collection search + stats). Capture-quality / **multi-frame** remains the next
-  reliability lever (still deferred; tracked separately).
+    (lint `--max-warnings=0` / format / typecheck / **338 tests**): the parser suite
+    (failure geometry, the BALOO guard, a `\b`-boundary guard, a **real
+    device-captures suite** and a **real ROTATED-captures suite** built from the
+    verbatim 2026-06-21 `DEBUG_RECOGNITION` frame dumps), 7 `decideRecognition`
+    boundary tests, and an end-to-end `recognitionConfidence` spec (clean captures
+    clear 0.70, a polluted-capture case, and an Action-card-over-same-number-decoy
+    case — all auto-confirm). Both the type-line-anchored and the rotation-aware
+    selection are verified red on the prior parser. A pre-PR multi-agent adversarial
+    review surfaced only two graceful, prime-directive-safe nits (both addressed).
+  - **✅ On-device acceptance PASSED (2026-06-21).** Two device runs of the field
+    build drove the fixes (small-printed version → type-line anchor; **sideways
+    captures → rotation-aware selection**). The final run resolved **10/10 cards at
+    the correct #1, 100% confidence** — GIZMODUCK #105, BOUN #104, BALOO #69, DAVID
+    XANATOS #184, THOMAS #1, MIRABEL #19, EILONWY #7, RESTORING THE HEART #39,
+    PROMISING LEAD #162, CARD SOLDIERS #129 — disambiguating every same-number
+    collision, with **zero wrong #1s** (the safety guarantee held). Two cards whose
+    collector number was dropped by OCR (lost `/`) still resolved at 100% via the
+    name, confirming the fuzzy-name resilience. Captured via the new
+    `DEBUG_RECOGNITION` Share/export + per-line frame dump. _(Extended mixed-scan
+    soak remains the standing DoD native-exception note.)_
+- **Next action (recommended):** **D3 is field-complete** (on-device acceptance
+  passed). Merge PR #36, then start **E1–E3 hardening** (edit/remove + manual add,
+  error/offline/empty states, collection search + stats). Two recognition follow-ups
+  are now well-characterised and worth scheduling: **(i) capture orientation** —
+  apply the still's EXIF/orientation before ML Kit so reads aren't sideways at the
+  source (a `MlKitOcrEngine` change; would also lift OCR accuracy generally), and
+  **(ii) lenient collector-number parse** — OCR sometimes drops the `/` (`391204`,
+  `/204`), losing the number; the name carries it today, but a tolerant `N/204`
+  parse would restore the corroboration signal. Capture-quality / **multi-frame**
+  remains the next reliability lever (deferred; tracked separately).
 
 **Settled decisions (don't re-litigate):**
 
@@ -829,20 +838,21 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 
 #### D3. Recognition confidence refinement — `feature/recognition-confidence`
 
-- **Status: IMPLEMENTED on `feature/recognition-confidence`; PR → `development`
-  pending review.** Pure logic, test-first, full JS gate green on Node 26 (331
-  tests). See the §0 D3 entry for the full breakdown. **Version selection is
-  anchored to the type line** (the version is the line(s) between the name and the
-  `Storyborn • …`/`Action`/… line, by position not height) after 2026-06-21 device
-  captures showed the small-printed version being dropped by the height gate;
-  Action/Item/Location/Song cards correctly yield the bare name. **Decisions
-  recorded:** the number-trust lives **only in `decideRecognition`** (an additive
-  `corroboratedMin` = 0.55 floor relaxation, margin gate untouched) — `matchEntries`
-  / `rankExactTier` stay pure and **unchanged** (the D2 boundary), and there is **no
-  affine boost** in `rankExactTier` (the `conf = α + (1−α)·nameSim` option was
-  rejected as unsafe). `confidentMin = 0.70` / `ambiguityMargin = 0.15` / `topN = 10`
-  are **unchanged**; 0.55 is the only new threshold. **On-device acceptance of the
-  reworked build is the remaining step** (DoD native exception).
+- **Status: IMPLEMENTED + on-device PASSED on `feature/recognition-confidence`;
+  PR #36 → `development` ready to merge.** Pure logic, test-first, full JS gate
+  green on Node 26 (338 tests). See the §0 D3 entry for the full breakdown.
+  **Version selection is anchored to the type line AND rotation-aware** — the
+  version is the nearest non-type/non-artist line to the name that sits closer than
+  the type line, measured on a rotation-detected stacking axis (2026-06-21 device
+  frames showed captures come out **sideways**); Action/Item/Location/Song cards
+  yield the bare name. **On-device acceptance PASSED: 10/10 cards correct #1 at
+  100%, zero wrong #1s.** **Decisions recorded:** number-trust lives **only in
+  `decideRecognition`** (an additive `corroboratedMin` = 0.55 floor relaxation,
+  margin gate untouched) — `matchEntries` / `rankExactTier` stay pure and
+  **unchanged** (the D2 boundary), and there is **no affine boost** in
+  `rankExactTier` (the `conf = α + (1−α)·nameSim` option was rejected as unsafe).
+  `confidentMin = 0.70` / `ambiguityMargin = 0.15` / `topN = 10` are **unchanged**;
+  0.55 is the only new threshold.
 - **Why:** D2 made recognition **field-SAFE** (no wrong auto-saves) but confidence
   is systematically capped below the 0.70 floor, so correct reads route to the
   manual pick (one extra tap) instead of auto-confirming. Surfaced by the D2
@@ -868,12 +878,12 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   ceiling an extra pass would lift, e.g. `Suited Up→Suted Up`); a second backend;
   pricing.
 - **Depends on:** D2.
-- **Acceptance:** the four diagnostic cards **auto-confirm (≥ 0.70) on a clean
-  capture** — **met on fixtures** (4/4 at confidence 1.0 through the real chain);
-  thresholds recorded (0.70 / 0.15 unchanged, 0.55 added); the `matchEntries`/A3
-  boundary call recorded; pure logic test-first. **On-device re-validation (the four
-  cards auto-confirming + a mixed-scan soak for zero wrong saves) is the remaining
-  manual acceptance**, to attach to the PR with `DEBUG_RECOGNITION` evidence.
+- **Acceptance: ✅ MET.** The diagnostic cards **auto-confirm (≥ 0.70)** — on
+  fixtures (through the real chain) and **on-device: 10/10 cards correct #1 at 100%,
+  zero wrong #1s** (2026-06-21, rotated real captures, every same-number collision
+  disambiguated). Thresholds recorded (0.70 / 0.15 unchanged, 0.55 added); the
+  `matchEntries`/A3 boundary call recorded; pure logic, test-first. Extended
+  mixed-scan soak remains the standing DoD native-exception note.
 - **Priority:** version/subtitle selection > collector-number corroboration — the
   parser fix is the dominant confidence drag and largely subsumes the number credit
   (on clean captures the four cards clear 0.70 without it). **Size:** **M.**
