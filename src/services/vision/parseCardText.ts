@@ -79,6 +79,15 @@ const isTitleLike = (line: OcrTextLine): boolean =>
  * below the version, so it both (a) is never a subtitle itself and (b) anchors a
  * ceiling: a real version is always ABOVE it. Anchored at the line start so a
  * mid-line "• action" in prose does not trip it.
+ *
+ * The classifications (storyborn/dreamborn/floodborn) only ever print on the type
+ * line — never as a version — so they are safe to match bare. The card-type words
+ * (action/item/location/song) are matched as a `\b`-bounded prefix: compounds are
+ * safe (`Songbird`, `Itemized`, `Locationless` do NOT match), but a version that
+ * literally begins with a bare type word + boundary ("Song of …", vanishingly rare)
+ * would be sacrificed — dropped from contention and read as bare NAME. That is a
+ * graceful miss, not a wrong save: the scanned collector number still corroborates
+ * #1, so `decideRecognition`'s relaxed floor auto-confirms the CORRECT card.
  */
 const TYPE_LINE =
   /^(storyborn|dreamborn|floodborn|action|item|location|song)\b/i;

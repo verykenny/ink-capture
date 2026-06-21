@@ -79,6 +79,32 @@ const cleanCapture = (
   };
 };
 
+/**
+ * A near-clean still where the artist credit OCR'd INTO the title gap above the
+ * version — the live D2 failure the parser fix targets. The correct read must
+ * still clear the floor; on the PRE-FIX parser the credit polluted the `name +
+ * version` key and the read fell below it, so this case is red → green at the
+ * integration level (not just inert like the clean captures above).
+ */
+const pollutedCapture = (
+  name: string,
+  credit: string,
+  version: string,
+  collector: string,
+): OcrResult => {
+  const lines = [
+    { text: name, frame: f(120, 500, 700, 150) },
+    { text: credit, frame: f(120, 560, 540, 85) }, // crept into the title gap
+    { text: version, frame: f(120, 655, 520, 85) },
+    { text: 'Storyborn • Ally', frame: f(120, 760, 540, 80) },
+    { text: collector, frame: f(120, 1500, 320, 60) },
+  ];
+  return {
+    text: lines.map(l => l.text).join('\n'),
+    blocks: [{ text: lines.map(l => l.text).join('\n'), lines }],
+  };
+};
+
 const recognizerOver = (ocr: OcrResult) => {
   const engine: OcrEngine = { recognizeText: async (_uri: string) => ocr };
   return createOcrCardRecognizer({
@@ -132,6 +158,32 @@ describe('D3 — the four diagnostic cards clear the 0.70 floor on a clean captu
       });
     },
   );
+
+  test('a polluted capture (artist credit in the title gap) still auto-confirms the correct card', async () => {
+    // Boun's live failure end-to-end: on the pre-fix parser the credit became the
+    // subtitle → key "boun grace lim" → ~0.35 → ambiguous (a manual pick). After
+    // the fix the version wins, the key is exact, and it auto-confirms.
+    const ocr = pollutedCapture(
+      'BOUN',
+      '>Grace Lim',
+      'Tireless Boatman',
+      '104/204 EN 10',
+    );
+    const result = await recognizerOver(ocr).recognize({
+      uri: 'file:///tmp/card.jpg',
+    });
+
+    expect(result.source).toEqual({
+      collectorNumber: '104',
+      name: 'BOUN Tireless Boatman',
+    });
+    expect(result.candidates[0].card).toEqual(CARD_BOUN);
+    expect(result.candidates[0].confidence).toBeGreaterThanOrEqual(0.7);
+    expect(decideRecognition(result)).toEqual({
+      kind: 'confident',
+      candidate: result.candidates[0],
+    });
+  });
 
   test('all four clear the floor with the default thresholds — corroboration is not required here', async () => {
     const confidences = await Promise.all(

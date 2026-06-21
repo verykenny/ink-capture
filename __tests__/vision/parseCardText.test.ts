@@ -507,6 +507,24 @@ describe('parseCardText — the version is anchored to the type line, not the ar
     );
     expect(result).toEqual({ collectorNumber: '77', name: 'MERLIN' });
   });
+
+  test('the type-word ceiling is \\b-bounded: a version starting with a type-word COMPOUND is kept', () => {
+    // Guards the `\b` in TYPE_LINE: "Songbird" is a compound, not the "Song" card
+    // type, so a version beginning with it must NOT be excluded as a type line.
+    // (Drop the `\b` and this regresses to the bare name.)
+    const result = parseCardText(
+      ocr([
+        line('SCUTTLE', f(120, 500, 520, 150)),
+        line('Songbird Companion', f(120, 655, 540, 90)), // version — "Song" + "bird" = no \b
+        line('Storyborn • Ally', f(120, 760, 540, 80)), // the real type line
+        line('33/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '33',
+      name: 'SCUTTLE Songbird Companion',
+    });
+  });
 });
 
 /**
