@@ -1,0 +1,98 @@
+/**
+ * recognitionDiagnostics — the dev-only, flag-gated recognition logger.
+ *
+ * `formatRecognitionDiagnostics` is pure (tested directly); `logRecognitionDiagnostics`
+ * only console.logs when DEBUG_RECOGNITION is set. react-native-config is mocked
+ * empty in Jest (jest.setup.ts) so the flag defaults OFF — this spec mutates that
+ * mocked object to exercise the on branch, restoring it afterwards. No device,
+ * no native, IP-clean fixtures only.
+ *
+ * @format
+ */
+
+import Config from 'react-native-config';
+import {
+  formatRecognitionDiagnostics,
+  logRecognitionDiagnostics,
+} from '@services';
+import type { OcrResult } from '@services';
+import type { RecognitionResult, RecognitionSource } from '@domain';
+import { CARD_ELSA, CARD_MICKEY } from '../fixtures/cards';
+
+type MutableConfig = Record<string, string | undefined>;
+
+const OCR: OcrResult = {
+  text: 'Elsa\nSnow Queen\n042/204',
+  blocks: [],
+};
+
+const SOURCE: RecognitionSource = {
+  collectorNumber: '42',
+  name: 'Elsa Snow Queen',
+};
+
+const RESULT: RecognitionResult = {
+  candidates: [
+    { card: CARD_ELSA, confidence: 0.91 },
+    { card: CARD_MICKEY, confidence: 0.42 },
+  ],
+  source: SOURCE,
+};
+
+describe('formatRecognitionDiagnostics', () => {
+  test('includes the raw OCR text, parsed source, and ranked candidates with confidences', () => {
+    const text = formatRecognitionDiagnostics({
+      ocr: OCR,
+      source: SOURCE,
+      result: RESULT,
+    });
+
+    expect(text).toContain('Elsa\nSnow Queen\n042/204'); // raw OCR, verbatim
+    expect(text).toContain('"collectorNumber":"42"'); // parsed source (JSON)
+    expect(text).toContain('Elsa — Snow Queen (TFC #042) 91%'); // top candidate
+    expect(text).toContain('Mickey Mouse — Brave Little Tailor (TFC #115) 42%');
+  });
+
+  test('renders an empty-candidate read as (none) and empty OCR as (empty)', () => {
+    const text = formatRecognitionDiagnostics({
+      ocr: { text: '', blocks: [] },
+      source: {},
+      result: { candidates: [] },
+    });
+
+    expect(text).toContain('(empty)');
+    expect(text).toContain('(none)');
+  });
+});
+
+describe('logRecognitionDiagnostics', () => {
+  let spy: jest.SpyInstance;
+
+  beforeEach(() => {
+    spy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    spy.mockRestore();
+    delete (Config as MutableConfig).DEBUG_RECOGNITION;
+  });
+
+  test('does not log when the DEBUG_RECOGNITION flag is unset (production default)', () => {
+    logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test('logs the formatted block when DEBUG_RECOGNITION is "true"', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
+    logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(
+      formatRecognitionDiagnostics({
+        ocr: OCR,
+        source: SOURCE,
+        result: RESULT,
+      }),
+    );
+  });
+});
