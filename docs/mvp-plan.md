@@ -10,7 +10,7 @@
 > Keep this section current as work lands — it's the handoff state for the next
 > contributor (human or agent).
 
-**As of 2026-06-18:**
+**As of 2026-06-21:**
 
 - **A2 dev tooling + CI gate is complete** (`chore/dev-tooling-ci` →
   `development`): the four quality scripts (`lint`, `format:check`, `typecheck`,
@@ -292,17 +292,31 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
   cleanup the plan asked for). The ML Kit pod bumped the **iOS deployment target to
   15.5** (handled in the Podfile). The fs module is a small native dep added under
   the cleanup requirement rather than its own ask-first — flagging for awareness.
-- **Next action:** **D1 + native CI are merged into `development`** (PRs #27/#29);
-  scan capture then gained **tap-to-focus + ultra-wide macro autofocus + pinch
-  zoom** (PR #30) after on-device testing showed the default wide lens couldn't
-  focus close enough to read a card. **D2 is now implemented on
-  `feature/recognition-tuning` (PR → `development` pending review):** a pure
+- **D2 recognition tuning & manual fallback is complete**
+  (`feature/recognition-tuning`, PR #32 → `development`, merged 2026-06-21): a pure
   `decideRecognition` routing policy (floor 0.70 / margin 0.15 / top-N 10), a
-  unified manual-pick / search screen, the "Wrong card?" escape, and dev-only
-  flag-gated diagnostics — so a low-confidence or ambiguous scan (the _Boun_ #104
-  case) routes to a top-N / manual pick instead of silently saving the wrong card.
-  On-device threshold confirmation is the remaining manual step. See the expanded
-  D2 below.
+  unified manual-pick / search screen, the "Wrong card?" escape, dev-only
+  flag-gated diagnostics (`DEBUG_RECOGNITION`), plus a JS single-flight OCR guard +
+  a patched ML Kit native leak fix (`patch-package`) — so a low-confidence or
+  ambiguous scan (the _Boun_ #104 case) routes to a top-N / manual pick instead of
+  silently saving the wrong card. **On-device acceptance PASSED (iPhone 16 Pro /
+  iOS 27, 2026-06-20): recognition is field-SAFE** — zero wrong auto-saves across
+  the test scans, correct card at #1 every time and present in the pick list.
+  - **Key finding from the device run (→ D3):** confidence is **systematically
+    capped below the 0.70 floor**, so correct reads route to the manual pick (one
+    extra tap) rather than auto-confirming. Two root causes — both refinements, not
+    D2 defects (D2's job was "no wrong saves," which it does): **(A)** the collector
+    number filters the candidate set but never _boosts_ confidence (`rankExactTier`
+    = name similarity only); **(B, higher impact)** the parser's subtitle selection
+    often grabs the **artist credit / ability text** instead of the card
+    **version**, and since the matcher key is `name + version`, a correct title +
+    wrong subtitle scores _worse_ than the title alone (Boun: 29% vs ~100% with the
+    right subtitle). Captured as **D3** below.
+- **Next action (recommended):** Task **D3** (`feature/recognition-confidence`) —
+  recognition confidence refinement (fix version/subtitle selection; fold the
+  exact collector-number match into confidence, margin-gated). The MVP loop is now
+  field-SAFE; D3 lifts good reads above the auto-confirm floor to cut the extra
+  manual tap. See §2 / the D3 task. (E1–E3 hardening remain after.)
 
 **Settled decisions (don't re-litigate):**
 
@@ -731,15 +745,53 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   manual search→Confirm, the "Wrong card?" escape, ScanScreen's three routing
   branches). Diagnostics formatter + flag unit-tested. **Full Jest suite green on
   Node 26; `tsc` / `eslint --max-warnings=0` / `prettier --check` clean.**
-- **On-device acceptance:** a checklist is in the PR for a human device run
-  (turn on `DEBUG_RECOGNITION`, confirm the threshold choices against real reads,
-  the Boun #104 case resolves or surfaces Boun in the top-N, a low-confidence scan
-  routes to manual, a manual search→save) — **pending the device run**; the camera/
-  OCR path is the documented DoD native exception (not unit-testable in Jest).
+- **On-device acceptance — ✅ PASSED (iPhone 16 Pro / iOS 27, 2026-06-20):**
+  recognition is **field-SAFE** — every low-confidence read routed to the manual
+  pick with the correct card present; **zero wrong auto-saves**; correct card at #1
+  on all test scans (GIZMODUCK #105, BOUN #104, BALOO #69, DAVID XANATOS #184);
+  collector number read correctly every time; the OCR resource-leak fix held over a
+  4-capture soak (extended soak remains the DoD native exception). The one gap —
+  confidence capped below the floor so good reads route to manual — is **D3**.
 - **A3 / seam integrity:** `CardRecognizer` / `RecognitionResult` /
-  `RecognitionCandidate` / `CatalogService` and `matchEntries` all unchanged; no
-  new dependency. IP guardrail: hand-authored fixtures only.
+  `RecognitionCandidate` / `CatalogService` and `matchEntries` all unchanged. IP
+  guardrail: hand-authored fixtures only. **Deps added (leak fix):** `patch-package`
+  (+ `postinstall`) carrying a `@react-native-ml-kit/text-recognition` patch, plus
+  the JS-side `withSingleFlight` OCR serializer — build tooling / a patched
+  existing dep, no new runtime native module.
 - **Size:** **M–L** (delivered).
+
+#### D3. Recognition confidence refinement — `feature/recognition-confidence`
+
+- **Why:** D2 made recognition **field-SAFE** (no wrong auto-saves) but confidence
+  is systematically capped below the 0.70 floor, so correct reads route to the
+  manual pick (one extra tap) instead of auto-confirming. Surfaced by the D2
+  on-device run (2026-06-20).
+- **Scope (in):**
+  - **(A — priority) Fix version/subtitle selection** in `parseCardText` so it
+    picks the card's **version**, not the artist credit or ability text. Exploit
+    the Lorcana layout: `NAME` (all-caps) → version (Title Case) → `Storyborn • …`
+    type line, with the artist credit lower and prefixed by an artist glyph (OCR'd
+    `>` / `→` / `•`, often containing `/` for co-artists). Anchor the version as
+    the Title-Case line between the name and the type line, and/or exclude
+    artist-credit-shaped lines.
+  - **(B) Fold the exact collector-number match into confidence**, margin-gated so
+    same-number decoys aren't all inflated — either a number-corroboration credit
+    in `rankExactTier` (`conf = α + (1−α)·nameSim`) or a number-aware trust gate in
+    `decideRecognition`. **Record the `matchEntries` / A3 boundary decision** D2
+    deliberately left intact, and re-tune the 0.70 / 0.15 thresholds with the
+    diagnostics once (A)/(B) land.
+  - **(small parser guard)** Don't strip a single trailing digit from an otherwise
+    all-caps name — the `BALOO`→`BALO0`→`BALO` O/0-misread case, where the
+    `MADRIGAL22` stat-stripper over-fires.
+- **Out:** capture-quality / **multi-frame** (still deferred — the upstream OCR
+  ceiling an extra pass would lift, e.g. `Suited Up→Suted Up`); a second backend;
+  pricing.
+- **Depends on:** D2.
+- **Acceptance:** the four diagnostic cards **auto-confirm (≥ 0.70) on a clean
+  capture**; thresholds re-tuned against the diagnostics; the `matchEntries`/A3
+  boundary call recorded; pure logic test-first; on-device re-validation in the PR.
+- **Priority:** **(A) > (B)** — (A) is the dominant confidence drag and may largely
+  subsume (B). **Size:** **M.**
 
 ### Milestone E — Hardening (mostly v1)
 
@@ -767,11 +819,11 @@ first.
 
 ## 4. MVP cut line
 
-| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                    |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable. |
-| **v1**                 | D2, E1, E2, E3                                                                                       | Manual correction, edit/remove, error/offline states, stats/search — the "hardening + improved UX" the roadmap lists.                        |
-| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                           |
+| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable.                          |
+| **v1**                 | D2, **D3**, E1, E2, E3                                                                               | Manual correction (D2 ✅), recognition confidence refinement (D3), edit/remove, error/offline states, stats/search — the "hardening + improved UX" the roadmap lists. |
+| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                                                    |
 
 **Nuance:** C2 ships first with the _stub_ recognizer (fully runnable, just not
 "real"). D1 is what makes it MVP-grade. If OCR accuracy disappoints in the D1
