@@ -316,16 +316,21 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
   (`feature/recognition-confidence`, PR → `development` pending review) — lifts
   correct reads above the 0.70 auto-confirm floor **without relaxing the
   no-wrong-save guarantee**, all pure logic and test-first. What landed:
-  - **(B, the dominant drag) version/subtitle selection in `parseCardText`:** three
-    predicates layer on top of the existing height/gap gates in `selectTitleLines`
-    (the tallest-ALL-CAPS name pick and the ≤6-word title pre-filter are unchanged) —
-    a **type-line ceiling** (the subtitle must sit strictly above the first
-    `Storyborn • …`/`Action`/… line), and exclusion of **type-line-** and
-    **artist-credit-shaped** lines (a leading `> » · • →` glyph or a co-artist
-    `Name / Name` slash). On clean fixtures these are inert (the gap gate already
-    excludes the same lines); they only bite when a credit/ability fragment lands
-    inside the gap window — the live failure where a correct title + wrong subtitle
-    scored _worse_ than the title alone (Boun 29% → ~100%).
+  - **(B, the dominant drag) version/subtitle selection in `parseCardText` — now
+    anchored to the type line.** Real `DEBUG_RECOGNITION` captures (2026-06-21)
+    pinned the failure: the **version prints smaller than the big all-caps name**,
+    so the old `height ≥ ½·name` gate dropped it and the parser fell through to the
+    artist credit / ability / flavor text below (`DAVID XANATOS chosen character.`,
+    `BALOO ura Pauseli`, `BOUN Alice Pisoni`; on an Action card `PROMISING LEAD ley
+lines…`). Fix: when a type line is found below the name, the **version is the
+    title-like line(s) BETWEEN the name and that type line — taken by position, not
+    height** (the tallest-ALL-CAPS name pick and the ≤6-word pre-filter are
+    unchanged; type-line- and artist-credit-shaped lines — a leading `> » · • →`
+    glyph or a co-artist `Name / Name` slash — are still excluded). So **character**
+    cards yield `NAME version` whatever the version's size, and **Action / Item /
+    Location / Song** cards yield the **bare NAME** (their type line sits directly
+    under the name, nothing between → no version). The height/gap heuristic is kept
+    only as the fallback when no type line is found.
   - **(small guard) BALOO trailing-digit:** `TRAILING_NUMBER` narrowed from
     `\s*\d+\s*$` to `(?:\s+\d+|\d{2,})\s*$` — a single digit fused to letters
     (`BALO0`, an O/0 misread) is kept; a whitespace-separated digit or a 2+-digit run
@@ -347,19 +352,23 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
     confidence 1.0 via (B) alone — so (A) is the safety margin for the **near-clean**
     band [0.55, 0.70), not a requirement for clean reads.
   - **Tested:** test-first throughout (red → green). Full JS gate green on Node 26
-    (lint `--max-warnings=0` / format / typecheck / **326 tests**): 14 new parser
-    tests (the live failure geometry + the four cards' real shapes + the BALOO guard
-    - a `\b`-boundary guard), 7 `decideRecognition` boundary tests, and an end-to-end
-      `recognitionConfidence` spec (clean captures clear 0.70 + a polluted-capture case
-      that is red on the pre-fix parser). The 23 existing parser tests and all 14 D2
-      policy tests stay green. A pre-PR multi-agent adversarial review of the diff
-      surfaced only two graceful, prime-directive-safe nits (both addressed).
-  - **On-device re-validation — PENDING (DoD native exception).** No device was
-    available, so the four cards' fixtures are structurally-representative of the
-    documented failure modes, and the device run (the four cards auto-confirming
-    ≥ 0.70 → Confirm, plus a mixed-scan soak for zero wrong auto-saves) is the
-    **remaining manual acceptance step**, to be captured with `DEBUG_RECOGNITION`
-    screenshots before/at merge.
+    (lint `--max-warnings=0` / format / typecheck / **331 tests**): the parser suite
+    (failure geometry, the BALOO guard, a `\b`-boundary guard, and a **real
+    device-captures suite** grounded in the 2026-06-21 `DEBUG_RECOGNITION` output —
+    the three character cards recover `NAME version`, the Action card yields the bare
+    name), 7 `decideRecognition` boundary tests, and an end-to-end
+    `recognitionConfidence` spec (clean captures clear 0.70, a polluted-capture case,
+    and an Action-card-over-same-number-decoy case — all auto-confirm). The
+    type-line-anchored selection is verified red on the prior height-gate parser. A
+    pre-PR multi-agent adversarial review surfaced only two graceful,
+    prime-directive-safe nits (both addressed).
+  - **On-device captures received (2026-06-21) and folded in.** The first device run
+    of the field build surfaced the small-printed-version failure above; the parser
+    is reworked against that real geometry and the four cards now resolve correctly
+    on it in test. **Remaining manual acceptance (DoD native exception):** an
+    on-device run of the reworked build — the four cards auto-confirming (≥ 0.70 →
+    Confirm) plus a mixed-scan soak for **zero wrong auto-saves** — to capture with
+    `DEBUG_RECOGNITION` screenshots before/at merge.
 - **Next action (recommended):** complete the **D3 on-device acceptance** (above),
   then **E1–E3 hardening** (edit/remove + manual add, error/offline/empty states,
   collection search + stats). Capture-quality / **multi-frame** remains the next
@@ -810,16 +819,19 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 #### D3. Recognition confidence refinement — `feature/recognition-confidence`
 
 - **Status: IMPLEMENTED on `feature/recognition-confidence`; PR → `development`
-  pending review.** Pure logic, test-first, full JS gate green on Node 26 (326
-  tests). See the §0 D3 entry for the full breakdown. **Decisions recorded:** the
-  number-trust lives **only in `decideRecognition`** (an additive `corroboratedMin`
-  = 0.55 floor relaxation, margin gate untouched) — `matchEntries` / `rankExactTier`
-  stay pure and **unchanged** (the D2 boundary), and there is **no affine boost** in
-  `rankExactTier` (the `conf = α + (1−α)·nameSim` option was rejected as unsafe).
-  `confidentMin = 0.70` / `ambiguityMargin = 0.15` / `topN = 10` are **unchanged**;
-  0.55 is the only new threshold. **On-device re-validation is the remaining
-  acceptance step** (DoD native exception — no device was available; fixtures are
-  structurally-representative of the documented failure modes).
+  pending review.** Pure logic, test-first, full JS gate green on Node 26 (331
+  tests). See the §0 D3 entry for the full breakdown. **Version selection is
+  anchored to the type line** (the version is the line(s) between the name and the
+  `Storyborn • …`/`Action`/… line, by position not height) after 2026-06-21 device
+  captures showed the small-printed version being dropped by the height gate;
+  Action/Item/Location/Song cards correctly yield the bare name. **Decisions
+  recorded:** the number-trust lives **only in `decideRecognition`** (an additive
+  `corroboratedMin` = 0.55 floor relaxation, margin gate untouched) — `matchEntries`
+  / `rankExactTier` stay pure and **unchanged** (the D2 boundary), and there is **no
+  affine boost** in `rankExactTier` (the `conf = α + (1−α)·nameSim` option was
+  rejected as unsafe). `confidentMin = 0.70` / `ambiguityMargin = 0.15` / `topN = 10`
+  are **unchanged**; 0.55 is the only new threshold. **On-device acceptance of the
+  reworked build is the remaining step** (DoD native exception).
 - **Why:** D2 made recognition **field-SAFE** (no wrong auto-saves) but confidence
   is systematically capped below the 0.70 floor, so correct reads route to the
   manual pick (one extra tap) instead of auto-confirming. Surfaced by the D2
