@@ -103,22 +103,27 @@ describe('decideRecognition', () => {
     expect(decideRecognition({ candidates: [] })).toEqual({ kind: 'none' });
   });
 
-  test('ambiguous candidates are capped at topN, best-first order preserved', () => {
-    // Seven near-tied low candidates: top below the floor -> ambiguous, capped 5.
-    const many = Array.from({ length: 7 }, (_, i) =>
+  test('ambiguous candidates are capped at topN (default 10), best-first order preserved', () => {
+    // Thirteen near-tied low candidates: top below the floor -> ambiguous, capped 10.
+    const many = Array.from({ length: 13 }, (_, i) =>
       candidate(0.6 - i * 0.01, `c${i}`),
     );
     const decision = decideRecognition(resultOf(...many));
 
     expect(decision.kind).toBe('ambiguous');
     if (decision.kind === 'ambiguous') {
-      expect(decision.candidates).toHaveLength(5);
+      expect(decision.candidates).toHaveLength(10);
       expect(decision.candidates.map(c => c.card.id)).toEqual([
         'SYN-c0',
         'SYN-c1',
         'SYN-c2',
         'SYN-c3',
         'SYN-c4',
+        'SYN-c5',
+        'SYN-c6',
+        'SYN-c7',
+        'SYN-c8',
+        'SYN-c9',
       ]);
     }
   });

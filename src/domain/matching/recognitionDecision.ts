@@ -18,7 +18,11 @@
  *
  * The thresholds are routing heuristics, not calibrated probabilities (the
  * underlying confidence is a relative name-similarity), so they are tunable
- * constants refined against the dev diagnostics — start 0.70 / 0.15 / 5.
+ * constants refined against the dev diagnostics — 0.70 / 0.15 / 10. `topN` was
+ * raised from 5 to 10 against on-device reads: a same-number ambiguity (the exact
+ * tier returns every printing that shares the collector number) can run to ~9
+ * cards across sets, so a cap of 5 could truncate the correct printing out of the
+ * pick list. 10 surfaces them all.
  *
  * Pure: no I/O, no `@services`, no mutation. It reads `candidates` as the
  * documented best-first order and does not re-rank — ranking is the matcher's job.
@@ -37,7 +41,7 @@ export interface RecognitionThresholds {
   confidentMin?: number;
   /** Top must beat the runner-up by at least this to be unambiguous (default 0.15). */
   ambiguityMargin?: number;
-  /** Cap the ambiguous top-N pick list at this many (default 5). */
+  /** Cap the ambiguous top-N pick list at this many (default 10). */
   topN?: number;
 }
 
@@ -49,7 +53,7 @@ export type RecognitionDecision =
 
 const DEFAULT_CONFIDENT_MIN = 0.7;
 const DEFAULT_AMBIGUITY_MARGIN = 0.15;
-const DEFAULT_TOP_N = 5;
+const DEFAULT_TOP_N = 10;
 
 export const decideRecognition = (
   result: RecognitionResult,

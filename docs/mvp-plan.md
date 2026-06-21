@@ -297,7 +297,7 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
   zoom** (PR #30) after on-device testing showed the default wide lens couldn't
   focus close enough to read a card. **D2 is now implemented on
   `feature/recognition-tuning` (PR → `development` pending review):** a pure
-  `decideRecognition` routing policy (floor 0.70 / margin 0.15 / top-N 5), a
+  `decideRecognition` routing policy (floor 0.70 / margin 0.15 / top-N 10), a
   unified manual-pick / search screen, the "Wrong card?" escape, and dev-only
   flag-gated diagnostics — so a low-confidence or ambiguous scan (the _Boun_ #104
   case) routes to a top-N / manual pick instead of silently saving the wrong card.
@@ -693,10 +693,12 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
     `confident | ambiguous | none`. Confident iff the top candidate clears a
     confidence floor **and** beats #2 by an ambiguity margin; else ambiguous
     (best-first top-N pick); empty → none. **Thresholds (tunable constants):
-    `confidentMin = 0.70`, `ambiguityMargin = 0.15`, `topN = 5`.** The single
+    `confidentMin = 0.70`, `ambiguityMargin = 0.15`, `topN = 10`.** The single
     tested home for the gate; the UI only routes on the decision. (Confidence is a
     relative name-similarity, not a calibrated probability — these are routing
-    heuristics, refined against the diagnostics.)
+    heuristics, refined against the diagnostics: `topN` was raised 5→10 after
+    on-device reads showed the correct same-number printing could land just past a
+    cap of 5 — e.g. _Baloo_ #69 at rank 6 — and so be truncated out of the pick.)
   - **Dev diagnostics (dev-only, flag-gated `DEBUG_RECOGNITION`):** the recognizer
     logs raw ML Kit text + parsed `RecognitionSource` + ranked candidates, so the
     thresholds are tuned against what live OCR actually reads, not guesses. Never
