@@ -27,7 +27,7 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CONDITIONS, FINISHES } from '@domain';
+import { CONDITIONS, FINISHES, cardDisplayTitle } from '@domain';
 import type { Condition, Finish } from '@domain';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
@@ -61,9 +61,7 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <Text style={styles.cardTitle}>
-        {card.version ? `${card.name} — ${card.version}` : card.name}
-      </Text>
+      <Text style={styles.cardTitle}>{cardDisplayTitle(card)}</Text>
       <Text style={styles.cardMeta}>
         {card.setCode} · #{card.collectorNumber} · {card.rarity}
       </Text>

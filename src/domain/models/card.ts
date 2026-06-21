@@ -18,3 +18,13 @@ export interface Card {
   readonly availableFinishes: readonly Finish[]; // closed set: normal | foil
   readonly imageUrl?: string; // remote URL; image bytes never stored (IP guardrail)
 }
+
+/**
+ * The display title for a card: `name — version`, or just `name` when there is no
+ * version. The single source of truth for this em-dash join across the UI and the
+ * dev diagnostics (distinct from `cardMatchKey`'s normalized space-join, which is
+ * for matching, not display).
+ */
+export const cardDisplayTitle = (
+  card: Pick<Card, 'name' | 'version'>,
+): string => (card.version ? `${card.name} — ${card.version}` : card.name);

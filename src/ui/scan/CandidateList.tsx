@@ -14,6 +14,7 @@
  */
 
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { cardDisplayTitle } from '@domain';
 import type { Card, RecognitionCandidate } from '@domain';
 
 export function CandidateList({
@@ -42,9 +43,7 @@ export function CandidateList({
           onPress={() => onPick(card)}
           accessibilityRole="button"
         >
-          <Text style={styles.rowTitle}>
-            {card.version ? `${card.name} — ${card.version}` : card.name}
-          </Text>
+          <Text style={styles.rowTitle}>{cardDisplayTitle(card)}</Text>
           <Text style={styles.rowMeta}>
             {card.setCode} · #{card.collectorNumber} · {card.rarity} ·{' '}
             {Math.round(confidence * 100)}%

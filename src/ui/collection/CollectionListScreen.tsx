@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useStore } from 'zustand';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { cardDisplayTitle } from '@domain';
 import type { CollectionEntry } from '@domain';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
@@ -31,7 +32,7 @@ const titleFor = (entry: CollectionEntry, lookup: CardLookup): string => {
   if (!card) {
     return entry.cardId;
   }
-  return card.version ? `${card.name} — ${card.version}` : card.name;
+  return cardDisplayTitle(card);
 };
 
 export function CollectionListScreen({ navigation }: Props): React.JSX.Element {

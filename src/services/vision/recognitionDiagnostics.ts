@@ -16,8 +16,12 @@
  * @format
  */
 
-import type { RecognitionCandidate, RecognitionResult } from '@domain';
-import type { RecognitionSource } from '@domain';
+import { cardDisplayTitle } from '@domain';
+import type {
+  RecognitionCandidate,
+  RecognitionResult,
+  RecognitionSource,
+} from '@domain';
 import type { OcrResult } from './OcrEngine';
 import { shouldLogRecognitionDiagnostics } from './visionConfig';
 
@@ -34,7 +38,7 @@ const candidateLine = (
   index: number,
 ): string => {
   const { card, confidence } = candidate;
-  const title = card.version ? `${card.name} — ${card.version}` : card.name;
+  const title = cardDisplayTitle(card);
   const pct = Math.round(confidence * 100);
   return `  ${index + 1}. ${title} (${card.setCode} #${
     card.collectorNumber
