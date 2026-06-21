@@ -403,6 +403,25 @@ lines…`). Fix: when a type line is found below the name, the **version is the
     usable; **no-match scan** → routes to catalog search with the `reason:'no-match'`
     prompt. **Process note:** PR #38 was **merged before** these checks ran, so they
     were **post-merge verification**, not a pre-merge gate — now closed.
+- **E1 edit/remove + off-catalog manual add is complete — ✅ merged + independently
+  verified** (`feature/collection-edit`, PR #42 → `development`, **MERGED `c26006a`**):
+  edit (quantity/finish/condition) and remove a collection stack, plus manual add of an
+  off-catalog card from the no-match path. Delivered test-first across **4 bisectable
+  commits** (358 → 382 → 388 → **397** tests). Two ratified, load-bearing decisions (see
+  the **E1 decisions** record below): (1) `update()` is now a **transactional
+  merge-on-edit** behind its unchanged signature — an edit colliding with another stack
+  sums quantity onto the target and **deletes the source atomically** (reusing B1's
+  `resolveAddition`), never throwing UNIQUE; the locked `rejects (UNIQUE)` repo test was
+  replaced by a merge test, watched red→green. (2) Off-catalog cards get a
+  `manual:<rowid>` id from a new `custom_cards` table (migration 003) that maps to the
+  existing `Card` — **no `Card`/`CollectionEntry` schema, identity-tuple, or
+  UNIQUE-index change**. Atomicity proven via `RecordingSqliteDatabase` (BEGIN→COMMIT on
+  merge; BEGIN→ROLLBACK with both rows intact on an injected mid-merge failure).
+  Adversarial multi-agent review: 2 minor findings fixed, 1 out-of-scope dismissed.
+  **Architect review PASSED** — the diff is exactly the permitted deltas (no
+  recognition / `CardRecognizer` / `CatalogService` / `HttpJsonClient` changes; IP
+  guardrail held), and the 4-commit bisect + gates were re-verified independently in an
+  isolated worktree on Node 26 (397 green; lint / format / typecheck clean).
 - **Per-developer iOS code signing is wired** (`chore/ios-signing-xcconfig`,
   PR #40 → `development`, **MERGED `49a6068`**): the Apple `DEVELOPMENT_TEAM` now
   lives only in a **git-ignored** `ios/Signing.local.xcconfig` (committed template:
@@ -419,11 +438,12 @@ lines…`). Fix: when a type line is found below the name, the **version is the
   (EXIF before ML Kit — small native change, also lifts OCR accuracy); (ii) lenient
   `N/204` collector-number parse (pure logic). Capture-quality / **multi-frame**
   remains the deferred reliability lever. Touch opportunistically; not E2 work.
-- **Next action:** **E1** (edit/remove + manual add — incl. the off-catalog manual
-  entry E2 deliberately excluded; mind the B3 `update()`-into-existing-stack UNIQUE
-  edge), then **E3** (collection search + stats). The two recognition follow-ons
-  above remain tracked/unscheduled. _(E2 and the iOS signing infra both landed
-  2026-06-21; the next milestone task is unscoped pending Build Lead selection.)_
+- **Next action:** **E3** (collection search + stats — `feature/collection-stats`),
+  the last remaining v1 milestone task. The two recognition follow-ons above remain
+  tracked/unscheduled (a separate opportunistic chore — do not fold into E3). _(E1
+  landed 2026-06-21; with A1–A3, B1–B3, C1–C2, D1–D3, E1, E2 all merged plus native CI
+  and per-developer signing, E3 is the final MVP/v1 task before the deferred/stretch
+  tier.)_
 
 **Settled decisions (don't re-litigate):**
 
