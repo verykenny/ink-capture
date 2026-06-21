@@ -49,8 +49,12 @@ describe('formatRecognitionDiagnostics', () => {
 
     expect(text).toContain('Elsa\nSnow Queen\n042/204'); // raw OCR, verbatim
     expect(text).toContain('"collectorNumber":"42"'); // parsed source (JSON)
-    expect(text).toContain('Elsa — Snow Queen (TFC #042) 91%'); // top candidate
-    expect(text).toContain('Mickey Mouse — Brave Little Tailor (TFC #115) 42%');
+    // Ranked + 1-based numbered, best-first — the order matters for tuning.
+    expect(text).toContain('1. Elsa — Snow Queen (TFC #042) 91%');
+    expect(text).toContain(
+      '2. Mickey Mouse — Brave Little Tailor (TFC #115) 42%',
+    );
+    expect(text.indexOf('1. Elsa')).toBeLessThan(text.indexOf('2. Mickey'));
   });
 
   test('renders an empty-candidate read as (none) and empty OCR as (empty)', () => {

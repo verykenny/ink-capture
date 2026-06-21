@@ -123,6 +123,21 @@ describe('decideRecognition', () => {
     }
   });
 
+  test('a custom topN flows through to the ambiguous cap (not hardcoded 5)', () => {
+    const many = Array.from({ length: 7 }, (_, i) =>
+      candidate(0.6 - i * 0.01, `c${i}`),
+    );
+    const decision = decideRecognition(resultOf(...many), { topN: 2 });
+
+    expect(decision.kind).toBe('ambiguous');
+    if (decision.kind === 'ambiguous') {
+      expect(decision.candidates.map(c => c.card.id)).toEqual([
+        'SYN-c0',
+        'SYN-c1',
+      ]);
+    }
+  });
+
   describe('threshold boundaries', () => {
     test('top exactly at the floor (no runner-up) is confident', () => {
       const at = candidate(0.7, 'floor');
@@ -155,6 +170,21 @@ describe('decideRecognition', () => {
         { confidentMin: 0.5, ambiguityMargin: 0.25 },
       );
       expect(decision.kind).toBe('ambiguous');
+    });
+
+    test('both boundaries at once — top exactly at floor AND beating #2 by exactly the margin — is confident (both inclusive, with a runner-up present)', () => {
+      // Power-of-two values so both comparisons are float-exact at the boundary:
+      // top 0.5 == floor 0.5; 0.5 - 0.25 == margin 0.25. This pins that the AND
+      // of clearsFloor && beatsRunnerUp passes at the joint inclusive corner.
+      const top = candidate(0.5, 'top');
+      const decision = decideRecognition(
+        resultOf(top, candidate(0.25, 'snd')),
+        {
+          confidentMin: 0.5,
+          ambiguityMargin: 0.25,
+        },
+      );
+      expect(decision).toEqual({ kind: 'confident', candidate: top });
     });
   });
 

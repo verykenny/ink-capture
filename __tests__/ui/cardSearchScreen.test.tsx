@@ -116,3 +116,32 @@ test('shows the search prompt when there is neither a seed nor a query', () => {
   renderScreen(buildServices(), routeWith());
   expect(screen.getByText('Search for a card by name.')).toBeOnTheScreen();
 });
+
+test('a query that matches nothing shows the "try the full name" guidance, not the prompt', async () => {
+  renderScreen(buildServices(), routeWith());
+
+  fireEvent.changeText(
+    screen.getByPlaceholderText('Search cards by name'),
+    'Zzqx Nonexistent Card',
+  );
+
+  expect(
+    await screen.findByText(/No matches — try the card/),
+  ).toBeOnTheScreen();
+  expect(screen.queryByText('Search for a card by name.')).toBeNull();
+});
+
+test('debounce coalesces rapid keystrokes — only the final query’s result renders', async () => {
+  renderScreen(buildServices(), routeWith());
+  const input = screen.getByPlaceholderText('Search cards by name');
+
+  // Two keystrokes inside the debounce window: the first (Elsa) must be cancelled
+  // before its match runs, so its result never appears — only Mickey's does.
+  fireEvent.changeText(input, 'Elsa Snow Queen');
+  fireEvent.changeText(input, 'Mickey Mouse Brave Little Tailor');
+
+  expect(
+    await screen.findByText('Mickey Mouse — Brave Little Tailor'),
+  ).toBeOnTheScreen();
+  expect(screen.queryByText('Elsa — Snow Queen')).toBeNull();
+});
