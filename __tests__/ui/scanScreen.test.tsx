@@ -101,7 +101,8 @@ test('Capture takes a still, recognizes it, navigates to Confirm, and deletes th
 
   await waitFor(() =>
     expect(navigation.navigate).toHaveBeenCalledWith('Confirm', {
-      result: RESULT,
+      card: CARD_ELSA,
+      confidence: 1,
     }),
   );
   expect(mockTakePhoto).toHaveBeenCalledTimes(1);

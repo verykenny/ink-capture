@@ -152,7 +152,17 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
       const result = await recognizer.recognize({
         uri: `file://${photo.path}`,
       });
-      navigation.navigate('Confirm', { result });
+      // Confirm now takes a chosen card, so wrap the recognizer's top candidate.
+      // D2's routing (decideRecognition: confident vs ambiguous vs none) lands in
+      // a later commit; for now the existing behaviour is preserved for a present
+      // candidate (an empty read simply doesn't navigate until routing arrives).
+      const top = result.candidates[0];
+      if (top) {
+        navigation.navigate('Confirm', {
+          card: top.card,
+          confidence: top.confidence,
+        });
+      }
     } finally {
       if (path !== undefined) {
         // Best-effort: delete the captured still so card photos don't linger on

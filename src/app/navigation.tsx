@@ -4,7 +4,8 @@
  * Shape (ratified): Collection (initial) → Scan → Confirm (modal). Relaunch
  * lands on the persisted Collection list, which is what demonstrates
  * persistence-across-restart; the Scan CTA pushes Scan, and Confirm is presented
- * modally carrying the RecognitionResult the Scan screen produced.
+ * modally carrying the chosen card the Scan screen (or, in D2, the manual pick)
+ * produced.
  *
  * The route table (`RootStackParamList`) lives in `@ui/navigationTypes` so the
  * screens can type their props without importing from `@app`; it is re-exported

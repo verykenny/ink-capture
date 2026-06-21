@@ -10,10 +10,13 @@
  * @format
  */
 
-import type { RecognitionResult } from '@domain';
+import type { Card } from '@domain';
 
 export type RootStackParamList = {
   Collection: undefined;
   Scan: undefined;
-  Confirm: { result: RecognitionResult };
+  // A chosen card (+ its scan confidence, when it came from a confident scan)
+  // feeds the one confirm+save screen — whether from a confident scan, an
+  // ambiguous top-N pick, or a manual search. Confidence is a display hint only.
+  Confirm: { card: Card; confidence?: number };
 };

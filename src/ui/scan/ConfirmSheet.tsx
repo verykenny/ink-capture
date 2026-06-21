@@ -1,15 +1,18 @@
 /**
- * ConfirmSheet — the modal that turns a recognition result into a saved stack.
+ * ConfirmSheet — the modal that turns a chosen card into a saved stack.
  *
- * Shows the top candidate (the recognizer returns best-first) with its
- * confidence as a *hint only* — never a gate or threshold; the user always
- * confirms. Finish and condition are picked with an OptionSelector built from the
- * domain value sets (FINISHES / CONDITIONS); the finish defaults to the card's
- * first available finish, condition to 'NM', quantity to 1. "Add to collection"
- * builds a NewCollectionEntry and saves through the store (→ repository
- * merge-on-insert), then pops back to the refreshed list.
+ * Takes a single chosen `card` (+ optional scan `confidence`) — so every source
+ * feeds the one confirm+save screen: a confident scan, an ambiguous top-N pick,
+ * or a manual search. The confidence, when present, is a *hint only* — never a
+ * gate or threshold; the user always confirms. Finish and condition are picked
+ * with an OptionSelector built from the domain value sets (FINISHES /
+ * CONDITIONS); the finish defaults to the card's first available finish,
+ * condition to 'NM', quantity to 1. "Add to collection" builds a
+ * NewCollectionEntry and saves through the store (→ repository merge-on-insert),
+ * then pops back to the refreshed list.
  *
- * Empty candidates get a minimal no-match message (rich no-match/error UX is E2).
+ * Low/ambiguous/no-match reads never reach here asserting a wrong #1 — ScanScreen
+ * routes them to the manual pick instead (the D2 decideRecognition policy).
  *
  * @format
  */
@@ -33,22 +36,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Confirm'>;
 
 export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
   const { collectionStore } = useAppServices();
-  const candidate = route.params.result.candidates[0];
-  const card = candidate?.card;
+  const { card, confidence } = route.params;
 
-  // Hooks must run unconditionally — compute safe defaults even when there is no
-  // candidate (the early return below renders the no-match branch).
   const [finish, setFinish] = useState<Finish>(
-    card?.availableFinishes[0] ?? FINISHES[0],
+    card.availableFinishes[0] ?? FINISHES[0],
   );
   const [condition, setCondition] = useState<Condition>('NM');
   const [quantity, setQuantity] = useState(1);
   const [saving, setSaving] = useState(false);
 
   const onAdd = useCallback(async () => {
-    if (!card) {
-      return;
-    }
     setSaving(true);
     try {
       await collectionStore
@@ -61,17 +58,6 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
     }
   }, [card, collectionStore, quantity, finish, condition, navigation]);
 
-  if (!candidate || !card) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.noMatchTitle}>No match found.</Text>
-        <Text style={styles.noMatchHint}>Try scanning the card again.</Text>
-      </View>
-    );
-  }
-
-  const confidencePct = Math.round(candidate.confidence * 100);
-
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.cardTitle}>
@@ -80,7 +66,11 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
       <Text style={styles.cardMeta}>
         {card.setCode} · #{card.collectorNumber} · {card.rarity}
       </Text>
-      <Text style={styles.confidence}>{confidencePct}% match</Text>
+      {confidence !== undefined ? (
+        <Text style={styles.confidence}>
+          {Math.round(confidence * 100)}% match
+        </Text>
+      ) : null}
 
       <Text style={styles.label}>Finish</Text>
       <OptionSelector
@@ -139,21 +129,6 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
 const styles = StyleSheet.create({
   content: {
     padding: 24,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  noMatchTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  noMatchHint: {
-    fontSize: 14,
-    opacity: 0.6,
-    marginTop: 6,
   },
   cardTitle: {
     fontSize: 22,
