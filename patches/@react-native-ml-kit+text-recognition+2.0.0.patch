@@ -1,0 +1,160 @@
+diff --git a/node_modules/@react-native-ml-kit/text-recognition/android/src/main/java/com/rnmlkit/textrecognition/TextRecognitionModule.java b/node_modules/@react-native-ml-kit/text-recognition/android/src/main/java/com/rnmlkit/textrecognition/TextRecognitionModule.java
+index 004bfb3..eb74cc9 100644
+--- a/node_modules/@react-native-ml-kit/text-recognition/android/src/main/java/com/rnmlkit/textrecognition/TextRecognitionModule.java
++++ b/node_modules/@react-native-ml-kit/text-recognition/android/src/main/java/com/rnmlkit/textrecognition/TextRecognitionModule.java
+@@ -164,21 +164,30 @@ public class TextRecognitionModule extends ReactContextBaseJavaModule {
+         try {
+             image = getInputImage(this.getReactApplicationContext(), url);
+             TextRecognizerOptionsInterface options = getScriptTextRecognizerOptions(script);
+-            TextRecognizer recognizer = TextRecognition.getClient(options);
++            // TextRecognizer is Closeable and owns a native detector pipeline. The
++            // original wrapper created one per call and never closed it, leaking the
++            // native resources until the process restarted — after a few calls the
++            // engine starts returning empty/garbage results. Close it once the result
++            // is consumed (success XOR failure fires, so this closes exactly once).
++            final TextRecognizer recognizer = TextRecognition.getClient(options);
+             recognizer.process(image)
+                     .addOnSuccessListener(new OnSuccessListener<Text>() {
+                         @Override
+                         public void onSuccess(Text visionText) {
+-                            WritableMap result = Arguments.createMap();
+-                            result.putString("text", visionText.getText());
++                            try {
++                                WritableMap result = Arguments.createMap();
++                                result.putString("text", visionText.getText());
+ 
+-                            WritableArray blocks = Arguments.createArray();
+-                            for (Text.TextBlock block : visionText.getTextBlocks()) {
+-                                blocks.pushMap(blockToMap(block));
+-                            }
+-                            result.putArray("blocks", blocks);
++                                WritableArray blocks = Arguments.createArray();
++                                for (Text.TextBlock block : visionText.getTextBlocks()) {
++                                    blocks.pushMap(blockToMap(block));
++                                }
++                                result.putArray("blocks", blocks);
+ 
+-                            promise.resolve(result);
++                                promise.resolve(result);
++                            } finally {
++                                recognizer.close();
++                            }
+                         }
+                     })
+                     .addOnFailureListener(
+@@ -186,6 +195,7 @@ public class TextRecognitionModule extends ReactContextBaseJavaModule {
+                                 @Override
+                                 public void onFailure(@NonNull Exception e) {
+                                     e.printStackTrace();
++                                    recognizer.close();
+                                     promise.reject("Text recognition failed", e);
+                                 }
+                             });
+diff --git a/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m b/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m
+index d23fb71..fde2113 100644
+--- a/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m
++++ b/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m
+@@ -8,10 +8,53 @@
+ @import MLKitTextRecognitionKorean;
+ @import MLKitTextRecognitionDevanagari;
+ 
+-@implementation TextRecognition
++@implementation TextRecognition {
++    // One MLKTextRecognizer per script, reused across calls. The original wrapper
++    // allocated a fresh recognizer for every recognize() call; each one carries a
++    // native (Metal-backed) inference pipeline, and creating them per-call leaks
++    // those resources until the app restarts — after a few captures the engine
++    // starts returning empty/garbage text. ML Kit's own guidance is to create a
++    // detector once and reuse it, which is exactly what this cache does.
++    NSMutableDictionary<NSString *, MLKTextRecognizer *> *_recognizers;
++}
+ 
+ RCT_EXPORT_MODULE()
+ 
++// Lazily build (and then reuse) the recognizer for a script. Returns nil for an
++// unsupported script so the caller can reject. Guarded by @synchronized so a
++// race never double-creates a cached recognizer.
++- (MLKTextRecognizer *)recognizerForScript:(NSString *)script {
++    NSString *key = (script == nil) ? @"Latin" : script;
++    @synchronized (self) {
++        if (_recognizers == nil) {
++            _recognizers = [NSMutableDictionary dictionary];
++        }
++        MLKTextRecognizer *cached = _recognizers[key];
++        if (cached != nil) {
++            return cached;
++        }
++
++        MLKCommonTextRecognizerOptions *options = nil;
++        if ([key isEqualToString:@"Latin"]) {
++            options = [[MLKTextRecognizerOptions alloc] init];
++        } else if ([key isEqualToString:@"Chinese"]) {
++            options = [[MLKChineseTextRecognizerOptions alloc] init];
++        } else if ([key isEqualToString:@"Devanagari"]) {
++            options = [[MLKDevanagariTextRecognizerOptions alloc] init];
++        } else if ([key isEqualToString:@"Japanese"]) {
++            options = [[MLKJapaneseTextRecognizerOptions alloc] init];
++        } else if ([key isEqualToString:@"Korean"]) {
++            options = [[MLKKoreanTextRecognizerOptions alloc] init];
++        } else {
++            return nil;
++        }
++
++        MLKTextRecognizer *recognizer = [MLKTextRecognizer textRecognizerWithOptions:options];
++        _recognizers[key] = recognizer;
++        return recognizer;
++    }
++}
++
+ - (NSDictionary*)frameToDict: (CGRect)frame {
+     return @{
+         @"width": @(frame.size.width),
+@@ -83,31 +126,26 @@ RCT_EXPORT_METHOD(recognize: (nonnull NSString*)url
+                   resolver:(RCTPromiseResolveBlock)resolve
+                   rejecter:(RCTPromiseRejectBlock)reject)
+ {
+-    NSURL *_url = [NSURL URLWithString:url];
+-    NSData *imageData = [NSData dataWithContentsOfURL:_url];
+-    UIImage *image = [UIImage imageWithData:imageData];
+-    MLKVisionImage *visionImage = [[MLKVisionImage alloc] initWithImage:image];
+-    visionImage.orientation = image.imageOrientation;
+-
+-    // text recognizer options based on the script params
+-    MLKCommonTextRecognizerOptions *options = nil;
+-
+-    // if the language param isn't specified, we can assume the user requirement is Latin text recognition
+-    if (script == nil || [script isEqualToString:@"Latin"]) {
+-        options = [[MLKTextRecognizerOptions alloc] init];
+-    } else if ([script isEqualToString:@"Chinese"]) {
+-        options = [[MLKChineseTextRecognizerOptions alloc] init];
+-    } else if ([script isEqualToString:@"Devanagari"]) {
+-        options = [[MLKDevanagariTextRecognizerOptions alloc] init];
+-    } else if ([script isEqualToString:@"Japanese"]) {
+-        options = [[MLKJapaneseTextRecognizerOptions alloc] init];
+-    } else if ([script isEqualToString:@"Korean"]) {
+-        options = [[MLKKoreanTextRecognizerOptions alloc] init];
+-    } else {
++    // Reuse the cached recognizer for this script instead of allocating one per
++    // call (the per-call allocation was the native leak). Resolve it first so an
++    // unsupported script rejects before we decode the image.
++    MLKTextRecognizer *textRecognizer = [self recognizerForScript:script];
++    if (textRecognizer == nil) {
+         return reject(@"Text Recognition", @"Unsupported script", nil);
+     }
+ 
+-    MLKTextRecognizer *textRecognizer = [MLKTextRecognizer textRecognizerWithOptions:options];
++    MLKVisionImage *visionImage = nil;
++    // Decode the still inside an autorelease pool so the large NSData/UIImage
++    // temporaries are freed promptly rather than lingering until the run loop
++    // drains — repeated full-resolution captures otherwise pile up memory. The
++    // visionImage escapes the pool (it is retained by the completion block below).
++    @autoreleasepool {
++        NSURL *_url = [NSURL URLWithString:url];
++        NSData *imageData = [NSData dataWithContentsOfURL:_url];
++        UIImage *image = [UIImage imageWithData:imageData];
++        visionImage = [[MLKVisionImage alloc] initWithImage:image];
++        visionImage.orientation = image.imageOrientation;
++    }
+ 
+     [textRecognizer processImage:visionImage
+                       completion:^(MLKText *_Nullable _result,

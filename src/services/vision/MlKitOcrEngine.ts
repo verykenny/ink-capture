@@ -29,6 +29,7 @@ import type {
   OcrTextBlock,
   OcrTextLine,
 } from './OcrEngine';
+import { withSingleFlight } from './singleFlightOcrEngine';
 
 /** Translate ML Kit's `left`/`top` frame into the seam's `x`/`y`; omit when absent. */
 const toOcrFrame = (frame: Frame | undefined): OcrFrame | undefined =>
@@ -60,13 +61,21 @@ export const mapMlKitResult = (result: TextRecognitionResult): OcrResult => ({
   blocks: result.blocks.map(toOcrBlock),
 });
 
-/** Build the production OCR engine backed by on-device ML Kit text recognition. */
-export const createMlKitOcrEngine = (): OcrEngine => ({
-  async recognizeText(imageUri: string): Promise<OcrResult> {
-    const result = await TextRecognition.recognize(
-      imageUri,
-      TextRecognitionScript.LATIN,
-    );
-    return mapMlKitResult(result);
-  },
-});
+/**
+ * Build the production OCR engine backed by on-device ML Kit text recognition.
+ *
+ * Wrapped in `withSingleFlight` so concurrent captures never drive two native
+ * OCR pipelines at once — peak memory stays bounded to a single still, which
+ * (with the native recognizer-reuse patch) keeps repeated captures from
+ * exhausting native resources and returning empty/garbage reads.
+ */
+export const createMlKitOcrEngine = (): OcrEngine =>
+  withSingleFlight({
+    async recognizeText(imageUri: string): Promise<OcrResult> {
+      const result = await TextRecognition.recognize(
+        imageUri,
+        TextRecognitionScript.LATIN,
+      );
+      return mapMlKitResult(result);
+    },
+  });

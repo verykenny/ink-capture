@@ -157,6 +157,13 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
       if (path !== undefined) {
         // Best-effort: delete the captured still so card photos don't linger on
         // disk. Cleanup failure must not mask the recognition result.
+        //
+        // Ordering invariant: this unlink runs only AFTER `recognize` above has
+        // resolved, and the OCR engine reads the file fully (synchronously) before
+        // its async recognition completes — so the still always outlives the read.
+        // Do NOT hoist this delete to run concurrently with recognition: that would
+        // race the engine's file read and is NOT the cause of the repeated-capture
+        // failure (a native recognizer-resource leak was — see the D1 OCR engine).
         await unlink(path).catch(() => undefined);
       }
       capturing.current = false;
