@@ -1,19 +1,25 @@
 /**
- * CollectionListScreen — the initial route: the persisted collection, browsable.
+ * CollectionListScreen — the initial route: the persisted collection, browsable
+ * and searchable.
  *
  * A pure reader of the collection store (loaded once at startup; kept fresh by
  * ConfirmSheet's add → re-list). Each row shows the card's name/version (resolved
  * via the catalog, falling back to the cardId), its finish/condition, and the
- * stack quantity. A Scan CTA pushes the Scan route; an empty collection shows a
- * minimal empty state with the same CTA. Rich empty/error UX is E2.
+ * stack quantity. A search box filters the rendered list in place by normalized
+ * substring (name/version, plus exact collectorNumber and setCode token) — see
+ * `collectionSearch`; it is shown only when there are cards to search. A Scan CTA
+ * pushes the Scan route; an empty collection and a no-results search each show a
+ * distinct minimal empty state with the Scan CTA still available.
  *
  * @format
  */
 
+import { useState } from 'react';
 import {
   FlatList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -23,6 +29,7 @@ import { cardDisplayTitle } from '@domain';
 import type { CollectionEntry } from '@domain';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
+import { filterCollection } from './collectionSearch';
 import { useCardLookup, type CardLookup } from './useCardLookup';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Collection'>;
@@ -39,12 +46,18 @@ export function CollectionListScreen({ navigation }: Props): React.JSX.Element {
   const { collectionStore } = useAppServices();
   const entries = useStore(collectionStore, state => state.entries);
   const lookup = useCardLookup();
+  const [query, setQuery] = useState('');
 
   const goToScan = () => navigation.navigate('Scan');
 
+  const hasEntries = entries.length > 0;
+  // Filter in place over the (small) in-memory list — no debounce needed.
+  const visible = hasEntries ? filterCollection(entries, query, lookup) : [];
+  const noMatches = hasEntries && visible.length === 0;
+
   return (
     <View style={styles.container}>
-      {entries.length === 0 ? (
+      {!hasEntries ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No cards yet.</Text>
           <Text style={styles.emptyHint}>
@@ -52,29 +65,54 @@ export function CollectionListScreen({ navigation }: Props): React.JSX.Element {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={entries}
-          keyExtractor={entry => entry.id}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() =>
-                navigation.navigate('EditEntry', { entryId: item.id })
-              }
-              accessibilityRole="button"
-              accessibilityLabel={`Edit ${titleFor(item, lookup)}`}
-            >
-              <View style={styles.rowMain}>
-                <Text style={styles.rowTitle}>{titleFor(item, lookup)}</Text>
-                <Text style={styles.rowMeta}>
-                  {item.finish} · {item.condition}
-                </Text>
-              </View>
-              <Text style={styles.qty}>×{item.quantity}</Text>
-            </TouchableOpacity>
+        <>
+          <TextInput
+            style={styles.search}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search by name, set, or number"
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Search your collection"
+          />
+          {noMatches ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>No matches.</Text>
+              <Text style={styles.emptyHint}>
+                Try a different name, set, or number.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              style={styles.list}
+              data={visible}
+              keyExtractor={entry => entry.id}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() =>
+                    navigation.navigate('EditEntry', { entryId: item.id })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${titleFor(item, lookup)}`}
+                >
+                  <View style={styles.rowMain}>
+                    <Text style={styles.rowTitle}>
+                      {titleFor(item, lookup)}
+                    </Text>
+                    <Text style={styles.rowMeta}>
+                      {item.finish} · {item.condition}
+                    </Text>
+                  </View>
+                  <Text style={styles.qty}>×{item.quantity}</Text>
+                </TouchableOpacity>
+              )}
+            />
           )}
-        />
+        </>
       )}
 
       <TouchableOpacity
@@ -92,6 +130,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  search: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#3b5bfd',
+    fontSize: 16,
+  },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -107,6 +156,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginTop: 6,
     textAlign: 'center',
+  },
+  list: {
+    flex: 1,
   },
   listContent: {
     paddingVertical: 8,
