@@ -1,8 +1,9 @@
 /**
  * Catalog base-URL configuration.
  *
- * This is the ONLY module that imports react-native-config, keeping the native
- * env dependency isolated (and trivially mockable in Jest). The canonical URL is
+ * Together with `visionConfig`, this contains the react-native-config import to
+ * the config modules, keeping the native env dependency isolated (and trivially
+ * mockable in Jest). The canonical URL is
  * a code default so the app works with no `.env`; `CATALOG_API_BASE_URL` is an
  * optional override surfaced by react-native-config at build time.
  *

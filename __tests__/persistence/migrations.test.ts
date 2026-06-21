@@ -169,10 +169,10 @@ describe('migration 002 — catalog cache (B3 creates, B2 populates)', () => {
     await db.close();
   });
 
-  test('fresh DB ends at version 2 with the catalog tables + indexes', async () => {
+  test('fresh DB ends at the latest version with the catalog tables + indexes', async () => {
     await runMigrations(db);
 
-    expect(await userVersion(db)).toBe(2);
+    expect(await userVersion(db)).toBe(MIGRATIONS.length);
     const tables = await tableNames(db);
     expect(tables).toContain('catalog_cards');
     expect(tables).toContain('catalog_meta');
@@ -181,7 +181,7 @@ describe('migration 002 — catalog cache (B3 creates, B2 populates)', () => {
     expect(indexes).toContain('ix_catalog_normalized_name');
   });
 
-  test('forward-only: a v1 DB gets only 002 applied, preserving collection data', async () => {
+  test('forward-only: a v1 DB gets the pending migrations applied, preserving collection data', async () => {
     // Simulate an app installed at schema v1 (migration 001 only).
     await MIGRATIONS[0](db);
     await db.execute('PRAGMA user_version = 1');
@@ -189,7 +189,7 @@ describe('migration 002 — catalog cache (B3 creates, B2 populates)', () => {
 
     await runMigrations(db);
 
-    expect(await userVersion(db)).toBe(2);
+    expect(await userVersion(db)).toBe(MIGRATIONS.length);
     expect(await tableNames(db)).toContain('catalog_cards');
     // the v1 collection row is untouched by the forward migration
     const surviving = await db.execute(
@@ -232,7 +232,7 @@ describe('runMigrations gates on user_version (no blind re-runs)', () => {
     expect(recording.verbs).not.toContain('CREATE');
   });
 
-  test('from v1 it runs ONLY migration 002 (001 is not re-executed)', async () => {
+  test('from v1 it runs the pending migrations (001 is not re-executed)', async () => {
     await MIGRATIONS[0](inner);
     await inner.execute('PRAGMA user_version = 1');
 
@@ -244,6 +244,76 @@ describe('runMigrations gates on user_version (no blind re-runs)', () => {
     expect(ddl.some(sql => /catalog_cards/.test(sql))).toBe(true);
     // …and 001's table is NOT re-created (it was skipped, not just IF NOT EXISTS).
     expect(ddl.some(sql => /collection_entries/.test(sql))).toBe(false);
-    expect(await userVersion(inner)).toBe(2);
+    expect(await userVersion(inner)).toBe(MIGRATIONS.length);
+  });
+});
+
+describe('migration 003 — custom_cards (off-catalog manual store)', () => {
+  let db: TestSqliteDatabase;
+
+  beforeEach(() => {
+    db = new TestSqliteDatabase();
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  test('fresh DB gains the custom_cards table and stamps the latest version', async () => {
+    await runMigrations(db);
+
+    expect(await tableNames(db)).toContain('custom_cards');
+    expect(await userVersion(db)).toBe(MIGRATIONS.length);
+  });
+
+  test('available_finishes defaults to the closed finish set when omitted', async () => {
+    await runMigrations(db);
+    await db.execute(
+      'INSERT INTO custom_cards (name, created_at) VALUES (?, ?)',
+      ['Homemade Hero', '2026-06-21T00:00:00.000Z'],
+    );
+
+    const rows = await db.execute(
+      'SELECT name, available_finishes FROM custom_cards',
+    );
+    expect(rows.rows[0]).toMatchObject({
+      name: 'Homemade Hero',
+      available_finishes: '["normal","foil"]',
+    });
+  });
+
+  test('name is required (NOT NULL) — set/number/rarity/version are not', async () => {
+    await runMigrations(db);
+
+    await expect(
+      db.execute('INSERT INTO custom_cards (created_at) VALUES (?)', ['t']),
+    ).rejects.toThrow(/NOT NULL/i);
+
+    // name-only insert is accepted (everything else is nullable / defaulted).
+    await expect(
+      db.execute('INSERT INTO custom_cards (name, created_at) VALUES (?, ?)', [
+        'Name Only',
+        't',
+      ]),
+    ).resolves.toBeDefined();
+  });
+
+  test('forward-only: a v2 DB gets 003 applied, preserving collection data', async () => {
+    // Simulate an app installed at schema v2 (migrations 001 + 002 only).
+    await MIGRATIONS[0](db);
+    await MIGRATIONS[1](db);
+    await db.execute('PRAGMA user_version = 2');
+    await rawInsert(db, { cardId: 'PRE-EXISTING' });
+
+    await runMigrations(db);
+
+    expect(await userVersion(db)).toBe(MIGRATIONS.length);
+    expect(await tableNames(db)).toContain('custom_cards');
+    // the v2 collection row is untouched by the forward migration
+    const surviving = await db.execute(
+      'SELECT card_id FROM collection_entries WHERE card_id=?',
+      ['PRE-EXISTING'],
+    );
+    expect(surviving.rows).toHaveLength(1);
   });
 });

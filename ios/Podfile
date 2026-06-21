@@ -5,7 +5,11 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, min_ios_version_supported
+# D1: ML Kit Text Recognition (RNMLKitTextRecognition → GoogleMLKit 8.0.0)
+# requires iOS 15.5, just above RN 0.86's default min_ios_version_supported
+# (15.1). Bumped deliberately to clear the pod's floor; revisit if RN raises its
+# own default past this.
+platform :ios, '15.5'
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -30,5 +34,26 @@ target 'InkCapture' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Per-developer code signing without committing a personal Team ID.
+    # DEVELOPMENT_TEAM lives only in the git-ignored ios/Signing.local.xcconfig
+    # (see Signing.local.xcconfig.example). We append an optional include of it to
+    # the app target's Pods base xcconfigs (themselves git-ignored under Pods/),
+    # so the build resolves the team without ever putting it in project.pbxproj —
+    # a `git checkout` that reverts the project file can't wipe it. `#include?`
+    # (note the `?`) is a no-op when the file is absent, so CI / a fresh clone
+    # without it still builds.
+    include_line = '#include? "../../../Signing.local.xcconfig"'
+    %w[debug release].each do |cfg|
+      xcconfig = File.join(
+        __dir__,
+        "Pods/Target Support Files/Pods-InkCapture/Pods-InkCapture.#{cfg}.xcconfig"
+      )
+      next unless File.exist?(xcconfig)
+      next if File.read(xcconfig).include?(include_line)
+      File.open(xcconfig, 'a') do |f|
+        f.puts('', '// Per-developer signing (ink-capture); see Podfile post_install.', include_line)
+      end
+    end
   end
 end

@@ -162,4 +162,61 @@ describe('createCollectionStore', () => {
       await db.close();
     });
   });
+
+  describe('update', () => {
+    test('persists an in-place edit and reflects the refreshed list', async () => {
+      const { db, store } = await makeStore();
+      const created = await store.getState().add(newEntry({ quantity: 1 }));
+
+      const updated = await store
+        .getState()
+        .update(created.id, { quantity: 4 });
+
+      expect(updated.quantity).toBe(4);
+      expect(store.getState().status).toBe('ready');
+      expect(store.getState().entries).toHaveLength(1);
+      expect(store.getState().entries[0].quantity).toBe(4);
+      await db.close();
+    });
+
+    test('an edit that collides with another stack MERGES (one row, summed quantity)', async () => {
+      const { db, store } = await makeStore();
+      const normal = await store
+        .getState()
+        .add(newEntry({ finish: 'normal', quantity: 2 }));
+      await store.getState().add(newEntry({ finish: 'foil', quantity: 3 }));
+
+      await store.getState().update(normal.id, { finish: 'foil' });
+
+      const { entries } = store.getState();
+      expect(entries).toHaveLength(1); // merged through the repo, not a duplicate
+      expect(entries[0].quantity).toBe(5);
+      await db.close();
+    });
+
+    test('a rejected update sets status:error and rethrows', async () => {
+      const { db, store } = await makeStore();
+      const created = await store.getState().add(newEntry({ quantity: 1 }));
+
+      // quantity 0 is type-valid but violates the schema CHECK.
+      await expect(
+        store.getState().update(created.id, { quantity: 0 }),
+      ).rejects.toThrow();
+      expect(store.getState().status).toBe('error');
+      await db.close();
+    });
+  });
+
+  describe('remove', () => {
+    test('deletes an entry and reflects the refreshed (empty) list', async () => {
+      const { db, store } = await makeStore();
+      const created = await store.getState().add(newEntry({ quantity: 1 }));
+
+      await store.getState().remove(created.id);
+
+      expect(store.getState().status).toBe('ready');
+      expect(store.getState().entries).toEqual([]);
+      await db.close();
+    });
+  });
 });

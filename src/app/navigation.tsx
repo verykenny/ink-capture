@@ -1,10 +1,12 @@
 /**
  * Root navigation — the native-stack that wires the three C2 screens.
  *
- * Shape (ratified): Collection (initial) → Scan → Confirm (modal). Relaunch
+ * Shape: Collection (initial) → Scan → CardSearch → Confirm (modal). Relaunch
  * lands on the persisted Collection list, which is what demonstrates
- * persistence-across-restart; the Scan CTA pushes Scan, and Confirm is presented
- * modally carrying the RecognitionResult the Scan screen produced.
+ * persistence-across-restart; the Scan CTA pushes Scan. D2 adds CardSearch — the
+ * manual-pick / search screen a low-confidence or ambiguous scan routes to (and
+ * the user can reach from Confirm) — and Confirm is presented modally carrying
+ * the chosen card, whether from a confident scan or a manual pick.
  *
  * The route table (`RootStackParamList`) lives in `@ui/navigationTypes` so the
  * screens can type their props without importing from `@app`; it is re-exported
@@ -15,7 +17,12 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
+import { StatsScreen } from '@ui/collection/StatsScreen';
+import { StatsHeaderButton } from '@ui/collection/StatsHeaderButton';
+import { EditEntryScreen } from '@ui/collection/EditEntryScreen';
 import { ScanScreen } from '@ui/scan/ScanScreen';
+import { CardSearchScreen } from '@ui/scan/CardSearchScreen';
+import { ManualAddScreen } from '@ui/scan/ManualAddScreen';
 import { ConfirmSheet } from '@ui/scan/ConfirmSheet';
 import type { RootStackParamList } from '@ui/navigationTypes';
 
@@ -29,12 +36,36 @@ export function RootNavigator(): React.JSX.Element {
       <Stack.Screen
         name="Collection"
         component={CollectionListScreen}
-        options={{ title: 'My Collection' }}
+        options={({ navigation }) => ({
+          title: 'My Collection',
+          // eslint-disable-next-line react/no-unstable-nested-components -- React Navigation's headerRight is a render prop, not a remounted component; StatsHeaderButton itself is module-scope.
+          headerRight: () => <StatsHeaderButton navigation={navigation} />,
+        })}
+      />
+      <Stack.Screen
+        name="Stats"
+        component={StatsScreen}
+        options={{ title: 'Stats' }}
+      />
+      <Stack.Screen
+        name="EditEntry"
+        component={EditEntryScreen}
+        options={{ title: 'Edit Card' }}
       />
       <Stack.Screen
         name="Scan"
         component={ScanScreen}
         options={{ title: 'Scan a Card' }}
+      />
+      <Stack.Screen
+        name="CardSearch"
+        component={CardSearchScreen}
+        options={{ title: 'Pick the Card' }}
+      />
+      <Stack.Screen
+        name="ManualAdd"
+        component={ManualAddScreen}
+        options={{ title: 'Add a Card' }}
       />
       <Stack.Screen
         name="Confirm"

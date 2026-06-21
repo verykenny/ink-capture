@@ -14,6 +14,11 @@ export {
   createCollectionRepository,
   type RepositoryDeps,
 } from './SqliteCollectionRepository';
+export type { CustomCardRepository } from './CustomCardRepository';
+export {
+  createCustomCardRepository,
+  type CustomCardRepositoryDeps,
+} from './SqliteCustomCardRepository';
 export { openDatabase, createPersistenceService } from './connection';
 export { runMigrations, MIGRATIONS } from './migrations';
 export {

@@ -64,6 +64,97 @@ export const CARD_MICKEY: Card = {
   availableFinishes: ['normal', 'foil'],
 };
 
+/**
+ * The live "Boun → Billy Bones" case: two DIFFERENT cards that both print
+ * collector number '104' in different sets. With no setCode on the
+ * RecognitionSource the exact tier returns both, ranked only by name similarity,
+ * so a weak live name read can let the wrong one win at a low confidence — which
+ * is exactly what decideRecognition must route to a manual pick rather than
+ * silently assert. Hand-authored (invented subtitles); NEVER bulk data.
+ */
+export const CARD_BOUN: Card = {
+  id: 'URR-104',
+  name: 'Boun',
+  version: 'Tireless Boatman',
+  setCode: 'URR',
+  collectorNumber: '104',
+  rarity: 'Common',
+  availableFinishes: ['normal', 'foil'],
+};
+
+/** The same-number decoy that wins on a weak read — see CARD_BOUN. */
+export const CARD_BILLY_BONES: Card = {
+  id: 'TFC-104',
+  name: 'Billy Bones',
+  version: 'Ship Steward',
+  setCode: 'TFC',
+  collectorNumber: '104',
+  rarity: 'Uncommon',
+  availableFinishes: ['normal', 'foil'],
+};
+
+/**
+ * The D2 device-capture diagnostic cards (2026-06-20) — real NAMES + collector
+ * NUMBERS (facts), in catalog form (String(raw.number), no leading zeros) so the
+ * parser's normalized number lands on the matcher's exact tier. They drive the D3
+ * "do the four cards clear the 0.70 auto-confirm floor on a clean capture" gate.
+ * Hand-authored; NEVER bulk catalog data.
+ */
+export const CARD_GIZMODUCK: Card = {
+  id: 'SSK-105',
+  name: 'Gizmoduck',
+  version: 'Suited Up',
+  setCode: 'SSK',
+  collectorNumber: '105',
+  rarity: 'Rare',
+  availableFinishes: ['normal', 'foil'],
+};
+
+export const CARD_BALOO: Card = {
+  id: 'ITI-069',
+  name: 'Baloo',
+  version: 'Laid-Back Bear',
+  setCode: 'ITI',
+  collectorNumber: '69',
+  rarity: 'Common',
+  availableFinishes: ['normal', 'foil'],
+};
+
+export const CARD_DAVID_XANATOS: Card = {
+  id: 'AZS-184',
+  name: 'David Xanatos',
+  version: 'Steel Clan Leader',
+  setCode: 'AZS',
+  collectorNumber: '184',
+  rarity: 'Legendary',
+  availableFinishes: ['normal', 'foil'],
+};
+
+/**
+ * An Action card — **no version** (its match key is just the name). With the
+ * Action/Item/Location/Song layout the type line sits directly under the name, so
+ * the parser must yield the bare name. CARD_FALLING_RABBIT_HOLE is a same-number
+ * (#162) Action decoy — the card that wrongly won at ~35% on the device when the
+ * parser appended flavor text. Real NAMES + NUMBERS (facts); hand-authored.
+ */
+export const CARD_PROMISING_LEAD: Card = {
+  id: 'AZS-162',
+  name: 'Promising Lead',
+  setCode: 'AZS',
+  collectorNumber: '162',
+  rarity: 'Common',
+  availableFinishes: ['normal', 'foil'],
+};
+
+export const CARD_FALLING_RABBIT_HOLE: Card = {
+  id: 'URR-162',
+  name: 'Falling Down the Rabbit Hole',
+  setCode: 'URR',
+  collectorNumber: '162',
+  rarity: 'Uncommon',
+  availableFinishes: ['normal', 'foil'],
+};
+
 /** Build a NewCollectionEntry (pre-persistence) over sensible defaults. */
 export const newEntry = (
   overrides: Partial<NewCollectionEntry> = {},

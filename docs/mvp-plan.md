@@ -10,7 +10,7 @@
 > Keep this section current as work lands — it's the handoff state for the next
 > contributor (human or agent).
 
-**As of 2026-06-18:**
+**As of 2026-06-21:**
 
 - **A2 dev tooling + CI gate is complete** (`chore/dev-tooling-ci` →
   `development`): the four quality scripts (`lint`, `format:check`, `typecheck`,
@@ -19,10 +19,10 @@
   Husky pre-commit hook runs `lint-staged` and auto-installs via the `prepare`
   script on a fresh `npm install`; a GitHub Actions workflow gates PRs into
   `development` on the four checks plus a JS bundle check; and a `Brewfile` +
-  `scripts/setup.sh` give a one-command machine bootstrap. Native iOS/Android CI
-  build verification is **deferred but now unblocked** (the A1 boot gate was
-  closed 2026-06-17, below) — the bundle check proves only that the JS module
-  graph resolves.
+  `scripts/setup.sh` give a one-command machine bootstrap. **Native iOS/Android CI
+  build verification landed in `chore/native-ci`** (`.github/workflows/native-build.yml`):
+  a path-filtered macOS iOS-simulator build + Ubuntu Android `assembleDebug`,
+  complementing the JS bundle check (which only proves the module graph resolves).
   - Two hardening fixes made in passing: `@react-native/jest-preset` was
     referenced by `jest.config.js` but missing from `package.json` (it is only
     an _optional_ peer dep of `react-native`, so `npm ci` never installed it) —
@@ -206,7 +206,7 @@
     `normalized_name`-index prefilter is a future optimization that matters at
     **D1** (real-time scanning).
 - **C2 scan→confirm→add-to-collection slice + browse is complete**
-  (`feature/scan-to-collection-slice`, PR #25 → `development`): the first end-to-end
+  (`feature/scan-to-collection-slice`, PR #25 → `development`, merged 2026-06-18): the first end-to-end
   runnable product — navigation, a Zustand store, the three screens, and the real
   composition root, wired with `StubCardRecognizer.forCard(demoCard)` + the real
   catalog + real persistence. Relaunch lands on the persisted Collection list;
@@ -264,10 +264,189 @@
     increments in place (iOS ×2→×3, single row). Documented with screenshots in
     PR #25. Closes B2's open "confirm iOS pod autolink when C2 wires the
     composition root" item.
-- **Next action:** Task **D1** (`feature/ocr-recognition`) — the vision-camera
-  OCR frame processor + `OcrCardRecognizer`, swapped in behind `CardRecognizer`
-  (the one-line change in `@app/compositionRoot.initialize()`). **Ask-first** on
-  the ML Kit frame-processor native dep. Unblocked by C1 + C2.
+- **✅ Milestone C (vertical slice with a stub recognizer) is complete** — C1 + C2
+  merged. The app is the first **end-to-end runnable product**: scan (stub) →
+  confirm → save → browse, on the real catalog + real persistence, verified on the
+  iOS Simulator + Android emulator (2026-06-18). **D1** (real OCR) is **merged**
+  (PR #27), with the on-device accuracy spike **passed 10/10** (see Milestone D
+  below).
+- **Toolchain reminder (sharpened after the C2 review):** the Jest suite now
+  **hard-requires Node ≥22.5 (pinned 26 via `.nvmrc`)**. On Node 20 the **9
+  persistence/catalog suites fail to _load_** (`No such built-in module:
+node:sqlite`) — a scary-looking suite failure that is purely Node-version drift,
+  not a code defect. CI keys off `.nvmrc`; local contributors must `nvm use` to
+  match it. (First flagged at B3; C2 widened the affected suites.)
+- **✅ MVP loop achieved — code-complete and runnable, not yet field-hardened.**
+  D1 (PR #27, merged 2026-06-18) makes the documented loop real: **scan a physical
+  card → on-device ML Kit OCR → C1 match → confirm → save → browse, persisted.**
+  All MVP-tier tasks (A1–C2, **D1**) are merged, and **native iOS+Android build CI
+  is now wired** (`chore/native-ci`, PR #29 — closes the long-standing optional
+  follow-up). **Honest caveat:** the 10/10 spike was on curated stills; **live-camera
+  accuracy is not yet field-reliable** (glare/focus/misreads, e.g. _Boun_ #104 →
+  _Billy Bones_ #104 ~26%). PR #30 added tap-to-focus + ultra-wide macro autofocus
+  - pinch zoom to help; **D2 is what makes recognition dependable in the field.**
+- **Native deps added at D1 (visibility / retroactive ratification):**
+  `@react-native-ml-kit/text-recognition` (on-device, free, no key — the approved
+  OCR engine) and a light filesystem module `@dr.pogodin/react-native-fs`, used
+  only to delete the captured still after OCR (privacy/storage — the temp-file
+  cleanup the plan asked for). The ML Kit pod bumped the **iOS deployment target to
+  15.5** (handled in the Podfile). The fs module is a small native dep added under
+  the cleanup requirement rather than its own ask-first — flagging for awareness.
+- **D2 recognition tuning & manual fallback is complete**
+  (`feature/recognition-tuning`, PR #32 → `development`, merged 2026-06-21): a pure
+  `decideRecognition` routing policy (floor 0.70 / margin 0.15 / top-N 10), a
+  unified manual-pick / search screen, the "Wrong card?" escape, dev-only
+  flag-gated diagnostics (`DEBUG_RECOGNITION`), plus a JS single-flight OCR guard +
+  a patched ML Kit native leak fix (`patch-package`) — so a low-confidence or
+  ambiguous scan (the _Boun_ #104 case) routes to a top-N / manual pick instead of
+  silently saving the wrong card. **On-device acceptance PASSED (iPhone 16 Pro /
+  iOS 27, 2026-06-20): recognition is field-SAFE** — zero wrong auto-saves across
+  the test scans, correct card at #1 every time and present in the pick list.
+  - **Key finding from the device run (→ D3):** confidence is **systematically
+    capped below the 0.70 floor**, so correct reads route to the manual pick (one
+    extra tap) rather than auto-confirming. Two root causes — both refinements, not
+    D2 defects (D2's job was "no wrong saves," which it does): **(A)** the collector
+    number filters the candidate set but never _boosts_ confidence (`rankExactTier`
+    = name similarity only); **(B, higher impact)** the parser's subtitle selection
+    often grabs the **artist credit / ability text** instead of the card
+    **version**, and since the matcher key is `name + version`, a correct title +
+    wrong subtitle scores _worse_ than the title alone (Boun: 29% vs ~100% with the
+    right subtitle). Captured as **D3** below.
+- **D3 recognition confidence refinement is complete**
+  (`feature/recognition-confidence`, PR #36 → `development`, merged 2026-06-21) — lifts
+  correct reads above the 0.70 auto-confirm floor **without relaxing the
+  no-wrong-save guarantee**, all pure logic and test-first. What landed:
+  - **(B, the dominant drag) version/subtitle selection in `parseCardText` — now
+    anchored to the type line.** Real `DEBUG_RECOGNITION` captures (2026-06-21)
+    pinned the failure: the **version prints smaller than the big all-caps name**,
+    so the old `height ≥ ½·name` gate dropped it and the parser fell through to the
+    artist credit / ability / flavor text below (`DAVID XANATOS chosen character.`,
+    `BALOO ura Pauseli`, `BOUN Alice Pisoni`; on an Action card `PROMISING LEAD ley
+lines…`). Fix: when a type line is found below the name, the **version is the
+    title-like line(s) BETWEEN the name and that type line — taken by position, not
+    height** (the tallest-ALL-CAPS name pick and the ≤6-word pre-filter are
+    unchanged; type-line- and artist-credit-shaped lines — a leading `> » · • →`
+    glyph or a co-artist `Name / Name` slash — are still excluded). So **character**
+    cards yield `NAME version` whatever the version's size, and **Action / Item /
+    Location / Song** cards yield the **bare NAME** (their type line sits directly
+    under the name, nothing between → no version).
+  - **Rotation-aware (the decisive on-device finding).** A second device run
+    (per-line frames now dumped in the diagnostics) showed the captures come out
+    **sideways** — ML Kit reports each line as `w≈capHeight, h≈textLength`, so the
+    card's top-to-bottom axis is the image **X** axis, not Y, and the y-based
+    ordering scrambled. `selectTitleLines` now **detects rotation** from the lines
+    (text is always longer than tall) and measures cap height + a stacking position
+    on the detected axis; the version is the nearest non-type, non-artist line to
+    the name that sits **closer than the type line** (the type line is the anchor —
+    no height ratios). Validated against the **verbatim device frames** (THOMAS,
+    DAVID XANATOS, GIZMODUCK, PROMISING LEAD). _(Upstream follow-up: applying the
+    capture's EXIF/orientation before ML Kit would avoid the sideways read at the
+    source — a separate `MlKitOcrEngine`/capture change.)_
+  - **(small guard) BALOO trailing-digit:** `TRAILING_NUMBER` narrowed from
+    `\s*\d+\s*$` to `(?:\s+\d+|\d{2,})\s*$` — a single digit fused to letters
+    (`BALO0`, an O/0 misread) is kept; a whitespace-separated digit or a 2+-digit run
+    (`MADRIGAL22`) is still stripped.
+  - **(A) collector-number corroboration — in `decideRecognition` ONLY (the resolved
+    judgment call: option ii, NOT an affine boost in `rankExactTier`):** an additive
+    `corroboratedMin` (0.55) relaxes the floor when the scan's collector number
+    equals #1's. The **margin gate is unchanged** (still on raw similarities), so
+    relaxing _how high_ #1 must score never relaxes _how much_ it must beat #2 —
+    same-number decoys (Boun/Billy #104) stay ambiguous. `matchEntries` /
+    `rankExactTier` stay pure and **unchanged** (the D2 boundary), and
+    `Candidate.confidence` still means raw name similarity (ConfirmSheet's "% match"
+    stays honest).
+  - **Thresholds (recorded):** `confidentMin = 0.70` and `ambiguityMargin = 0.15`
+    are **unchanged**; `corroboratedMin = 0.55` is the only new constant — no global
+    floor drop. The `topN = 10` is unchanged.
+  - **The unit-3 gate result:** on a **clean** capture all four diagnostic cards
+    (GIZMODUCK #105, BOUN #104, BALOO #69, DAVID XANATOS #184) already clear 0.70 at
+    confidence 1.0 via (B) alone — so (A) is the safety margin for the **near-clean**
+    band [0.55, 0.70), not a requirement for clean reads.
+  - **Tested:** test-first throughout (red → green). Full JS gate green on Node 26
+    (lint `--max-warnings=0` / format / typecheck / **338 tests**): the parser suite
+    (failure geometry, the BALOO guard, a `\b`-boundary guard, a **real
+    device-captures suite** and a **real ROTATED-captures suite** built from the
+    verbatim 2026-06-21 `DEBUG_RECOGNITION` frame dumps), 7 `decideRecognition`
+    boundary tests, and an end-to-end `recognitionConfidence` spec (clean captures
+    clear 0.70, a polluted-capture case, and an Action-card-over-same-number-decoy
+    case — all auto-confirm). Both the type-line-anchored and the rotation-aware
+    selection are verified red on the prior parser. A pre-PR multi-agent adversarial
+    review surfaced only two graceful, prime-directive-safe nits (both addressed).
+  - **✅ On-device acceptance PASSED (2026-06-21).** Two device runs of the field
+    build drove the fixes (small-printed version → type-line anchor; **sideways
+    captures → rotation-aware selection**). The final run resolved **10/10 cards at
+    the correct #1, 100% confidence** — GIZMODUCK #105, BOUN #104, BALOO #69, DAVID
+    XANATOS #184, THOMAS #1, MIRABEL #19, EILONWY #7, RESTORING THE HEART #39,
+    PROMISING LEAD #162, CARD SOLDIERS #129 — disambiguating every same-number
+    collision, with **zero wrong #1s** (the safety guarantee held). Two cards whose
+    collector number was dropped by OCR (lost `/`) still resolved at 100% via the
+    name, confirming the fuzzy-name resilience. Captured via the new
+    `DEBUG_RECOGNITION` Share/export + per-line frame dump. _(Extended mixed-scan
+    soak remains the standing DoD native-exception note.)_
+- **E2 error/offline/empty states is complete — ✅ merged + on-device acceptance
+  PASSED** (`feature/error-states`, PR #38 → `development`, **MERGED `393c208`**): a
+  new `appInitStore` startup state machine gates the app — it reads the **local
+  catalog cache before any network call**, so an offline launch with a cached catalog
+  boots straight to `ready` (the network `sync()` becomes a fail-soft background
+  refresh) and only a first run with no cache awaits the download. Offline-no-cache
+  and a download error collapse to one recoverable `first-run-failed` → Retry; hard
+  failures (DB init, a broken local read) surface an error gate instead of a hung
+  spinner. No-match scans route to the catalog search with a `reason:'no-match'`
+  prompt; empty-collection / empty-search states are friendly and test-locked.
+  **Reactive offline detection — no `netinfo`, no new dep; A3 contracts + `sync()` /
+  `HttpJsonClient` + `AppServices` untouched** (12 files). Gate green on Node 26
+  (348 tests, +10; test-first). An adversarial multi-agent review found 2
+  low-severity hardening gaps, both fixed. **Architect code review PASSED.**
+  - **✅ On-device acceptance PASSED (2026-06-21).** All 3 manual checks ran green on
+    a physical device: **airplane-mode first run** → setup-needed + Retry (no hung
+    spinner); **airplane-mode cached launch** → boots straight to `ready`, fully
+    usable; **no-match scan** → routes to catalog search with the `reason:'no-match'`
+    prompt. **Process note:** PR #38 was **merged before** these checks ran, so they
+    were **post-merge verification**, not a pre-merge gate — now closed.
+- **E1 edit/remove + off-catalog manual add is complete — ✅ merged + independently
+  verified** (`feature/collection-edit`, PR #42 → `development`, **MERGED `c26006a`**):
+  edit (quantity/finish/condition) and remove a collection stack, plus manual add of an
+  off-catalog card from the no-match path. Delivered test-first across **4 bisectable
+  commits** (358 → 382 → 388 → **397** tests). Two ratified, load-bearing decisions (see
+  the **E1 decisions** record below): (1) `update()` is now a **transactional
+  merge-on-edit** behind its unchanged signature — an edit colliding with another stack
+  sums quantity onto the target and **deletes the source atomically** (reusing B1's
+  `resolveAddition`), never throwing UNIQUE; the locked `rejects (UNIQUE)` repo test was
+  replaced by a merge test, watched red→green. (2) Off-catalog cards get a
+  `manual:<rowid>` id from a new `custom_cards` table (migration 003) that maps to the
+  existing `Card` — **no `Card`/`CollectionEntry` schema, identity-tuple, or
+  UNIQUE-index change**. Atomicity proven via `RecordingSqliteDatabase` (BEGIN→COMMIT on
+  merge; BEGIN→ROLLBACK with both rows intact on an injected mid-merge failure).
+  Adversarial multi-agent review: 2 minor findings fixed, 1 out-of-scope dismissed.
+  **Architect review PASSED** — the diff is exactly the permitted deltas (no
+  recognition / `CardRecognizer` / `CatalogService` / `HttpJsonClient` changes; IP
+  guardrail held), and the 4-commit bisect + gates were re-verified independently in an
+  isolated worktree on Node 26 (397 green; lint / format / typecheck clean).
+- **Per-developer iOS code signing is wired** (`chore/ios-signing-xcconfig`,
+  PR #40 → `development`, **MERGED `49a6068`**): the Apple `DEVELOPMENT_TEAM` now
+  lives only in a **git-ignored** `ios/Signing.local.xcconfig` (committed template:
+  `ios/Signing.local.xcconfig.example`), included into the app's Pods base xcconfigs
+  by an idempotent Podfile `post_install` hook (re-applies on every `pod install`).
+  The team ID is **never** baked into the tracked `project.pbxproj`, so a stray
+  working-tree `git checkout`/`reset` can no longer wipe it — the exact failure that
+  broke device signing during an earlier review. `#include?` (optional) keeps CI / a
+  fresh clone building without the file. Verified post-merge: signing resolves to the
+  real Team ID, full JS gate green (348 tests), and a device build succeeds.
+  **Lesson recorded: review branches read-only or in a worktree — never run a
+  tree-wide `git checkout -- .` with uncommitted changes present.**
+- **Recognition follow-ons (tracked, unscheduled):** (i) capture orientation
+  (EXIF before ML Kit — small native change, also lifts OCR accuracy); (ii) lenient
+  `N/204` collector-number parse (pure logic). Capture-quality / **multi-frame**
+  remains the deferred reliability lever. Touch opportunistically; not E2 work.
+- **Next action:** **E3 is implemented** (collection search + stats —
+  `feature/collection-stats`, PR open → `development`; see the E3 milestone +
+  decisions record), which was the last remaining v1 milestone task — **once it
+  merges, v1/MVP is complete.** The only remaining work is the **deferred/stretch
+  tier** (Deck, second recognizer backend, pricing, export/import, cloud sync) plus
+  the two tracked recognition follow-ons below (EXIF orientation; lenient `N/204`
+  parse — a separate opportunistic chore, never folded into a milestone). _(With
+  A1–A3, B1–B3, C1–C2, D1–D3, E1, E2 merged and E3 implemented, plus native CI and
+  per-developer signing, the documented MVP loop + v1 hardening are done.)_
 
 **Settled decisions (don't re-litigate):**
 
@@ -315,11 +494,51 @@ treat as the default unless a human overrides:
   the inline composition root, and the `debugButton` style were removed when
   `App.tsx` was replaced by the real navigation/composition root. No `TODO(C2)`
   markers remain.
-- **E1 (from B3 review) — open:** `CollectionRepository.update()` can change
-  `finish`/`condition`, which may move a row onto another stack's identity and hit
-  the `UNIQUE (card_id, finish, condition)` index — it **throws rather than
-  merging** today. Acceptable now (integrity is protected), but E1 (edit/remove)
-  must handle an edit-into-existing-stack as a merge, not an error.
+- **E1 (from B3 review) — ✅ done (`feature/collection-edit`):** see the **E1
+  decisions** record below. `update()` now MERGES an edit-into-existing-stack
+  transactionally instead of throwing on the `UNIQUE (card_id, finish, condition)`
+  index.
+
+> **E1 decisions (ratified, `feature/collection-edit`):**
+>
+> - **Edit-merge supersedes the B3 reject contract — DONE.** `update()` now MERGES
+>   an edit that moves a row onto an existing `(card_id, finish, condition)` stack
+>   — target quantity += source quantity, source deleted, one transaction —
+>   instead of throwing `UNIQUE`. Signature unchanged; reuses B1's
+>   `resolveAddition`; the old "rejects (UNIQUE)" test is intentionally replaced by
+>   a merge test. Closes the B3-review carry-over.
+> - **Off-catalog manual cards (the E2-deferred fallback).** `manual:<rowid>`
+>   synthetic id from a new `custom_cards` table (migration 003); name is the only
+>   required field; provenance implicit in the id prefix — **no `Card`/
+>   `CollectionEntry` schema, identity-tuple, or UNIQUE-index change**. Mint-fresh
+>   per add. New additive `CustomCardRepository` exposed via a new required
+>   `AppServices.customCards`; `useCardLookup` resolves from catalog + custom
+>   store; `ConfirmSheet` gains an empty-meta guard. Manual cards aren't
+>   catalog-searchable (no-match fallback only).
+> - **Deliberate A3/B1-boundary deltas:** `update()` semantics (throw→merge)
+>   behind its unchanged signature; additive off-catalog storage +
+>   `AppServices.customCards`; new `collectionStore` `update`/`remove`. No
+>   recognition-pipeline / `CardRecognizer` / `CatalogService` / `HttpJsonClient`
+>   changes.
+
+> **E3 decisions (ratified, `feature/collection-stats`) — closes v1.**
+>
+> - Completion denominator derived **in-memory from `catalog.getAllCards()`**
+>   inside a pure `computeCollectionStats(entries, catalogCards)` reducer — **no
+>   `CatalogService` method, no migration** (an interface method would force 8
+>   fake/literal updates and is redundant).
+> - "Collected" = distinct catalog `cardId` owned (finish/condition/quantity-
+>   agnostic). Off-catalog (`manual:`) + unresolved excluded from set %, counted
+>   in overall totals + surfaced separately. Counts show distinct (completion) and
+>   total copies. Completion spans all distinct catalog rows incl.
+>   Enchanted/Special (base-set-only deferred).
+> - Set names deferred → `setCode` labels (`LorcanaAllCards.sets` is
+>   untyped/unconsumed; migration 004 `catalog_sets` is a follow-up after
+>   verifying the shape against a fixture).
+> - Search = pure normalized substring over the saved collection (name+version
+>   primary, exact collectorNumber + setCode token secondary); not the fuzzy
+>   `matchEntries`. No new deps, no A3 change.
+
 - **B2 — ✅ done:** `react-native-config` (^1.6.1) added so bare RN reads an
   optional `CATALOG_API_BASE_URL` override from `.env` (ask-first gate cleared by
   the user). Isolated to `catalogConfig.ts`, mocked in Jest; the canonical URL is
@@ -578,41 +797,245 @@ doctor` to the README troubleshooting notes.
 
 ### Milestone D — Real recognition (swap the stub)
 
-#### D1. OCR frame processor + `OcrCardRecognizer` — `feature/ocr-recognition`
+#### D1. Still-image OCR + `OcrCardRecognizer` — `feature/ocr-recognition` — ✅ complete — spike PASSED 10/10 (PR #27 → `development`, merged 2026-06-18)
 
-- **Scope (in):** A vision-camera **frame processor** that OCRs name + collector
-  number, feeding C1's matcher; ship as `OcrCardRecognizer` and swap it in behind
-  `CardRecognizer` (one wiring change). Start with a short spike to validate
-  accuracy before committing.
-- **Out:** Tuning/multi-frame (D2).
-- **Depends on:** C1, C2.
-- **Acceptance:** Real card scans resolve to correct candidates in good lighting;
-  the stub remains available behind a flag for tests. Matching stays
-  unit-tested; OCR integration validated manually on real cards (documented in
-  PR "how tested").
-- **Size:** **L.** **Forces the OCR decision → recommend ML Kit Text
-  Recognition** via a vision-camera frame-processor plugin: free, fully
-  on-device (offline-first, no recurring cost), and **cross-platform**. Apple
-  Vision is iOS-only, which breaks the cross-platform goal. Flag the
-  frame-processor plugin as a heavy native dep → **ask-first** before adding.
+- **Status (2026-06-18):** Implemented behind a PR into `development`; JS suite
+  green on Node 26 (typecheck/lint/format/Jest, 242 tests). The on-device
+  **accuracy spike PASSED 10/10 (100%)** — see the Spike entry below. PR is ready
+  to merge; the height-based parser (reworked from the spike captures) is the
+  shipped code path.
+- **Approach (ratified — changed from the original frame-processor sketch):**
+  **still-image** capture — tap → `camera.takePhoto()` → file URI → ML Kit
+  `recognize(uri)` → `parseCardText` → C1 matcher. **No live frame processor, no
+  `react-native-worklets-core`** (a live frame processor is a possible D2).
+  `CardImage { uri }` already fit, so no interface change.
+- **Scope (in / done):** an injectable `OcrEngine` seam + `MlKitOcrEngine` (the
+  only module importing the native lib; maps ML Kit's `{left,top,…}` frames into
+  the seam's `{x,y,…}`); the pure, test-first `parseCardText` (name + collector
+  number, with `String(Number(n))` normalization so `"042"`→`"42"` hits the
+  matcher's exact tier); `OcrCardRecognizer` composing engine → parser →
+  `matcher.match`; real still capture + temp-file cleanup (`@dr.pogodin/react-
+native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
+  `createAppServices`, with `StubCardRecognizer` preserved behind a
+  `USE_STUB_RECOGNIZER` flag. The C1 matcher and all A3 contracts are unchanged.
+- **Out (still D2):** confidence thresholds / auto-accept, multi-frame capture,
+  manual-search fallback UX, the live frame processor. **Native CI** landed
+  separately in `chore/native-ci` (D1 verified native builds locally).
+- **Spike (go/no-go — ✅ GO, 2026-06-18):** Two on-device batches (Android, 10
+  real cards spanning characters, songs, actions, items, foils). **ML Kit OCR is
+  strong** — it read name + collector number off foil/busy art on all 10 (one "7"
+  misread as "T"). The first run resolved only 5/10, but every miss was a **parser
+  bug**, not OCR (the 0.5 height band swept in body/flavor text and the big
+  lore/strength glyphs OCR'd "O4"/"43", printed taller than the name). After
+  reworking the parser (name = tallest alphabetic line; stat glyphs excluded;
+  merged stat digits stripped; regression-fixtured from the captures), the
+  **re-run resolved 10/10 = 100% correct top candidate** (9 at confidence 1.0;
+  Mirabel 0.50 — subtitle dropped, still #1 by a clear margin) — decisively above
+  the ≥~80% bar, even with Eilonwy's misread collector (its clean name carried it
+  via the fuzzy tier). **GO: D1 is mergeable.** (Sample was 10; a few more cards
+  would fully hit the stated 15–20 — nice-to-have, not a blocker.) Throwaway
+  harness (live + batch-from-photos + JSON export) lives on `spike/ocr-accuracy`
+  (not merged); spike photos stay git-ignored (IP).
+- **Native deps + app-size:** `@react-native-ml-kit/text-recognition` (on-device,
+  free, **no API key**) + `@dr.pogodin/react-native-fs`. The ML Kit lib pulls
+  **all five script recognizers** (Latin + Chinese/Devanagari/Japanese/Korean)
+  on both platforms — a real size cost: iOS resolves GoogleMLKit 8.0.0 across 98
+  pods; Android pulls `com.google.mlkit:text-recognition*:16.0.1`; the all-ABI
+  **debug** fat APK is ~192 MB (release per-ABI/density splits are far smaller).
+  Trimming to Latin-only (patch the podspec / prune the Android deps) is a
+  possible D2 size optimization.
+- **Min-OS check:** iOS bumped **15.1 → 15.5** (ML Kit's pod floor); Android
+  **minSdk 24** already clears ML Kit's 21 — no bump. The one deliberate,
+  documented change.
+- **Acceptance:** Local native builds clean on **both** platforms (iOS Debug
+  simulator build SUCCEEDED; Android `:app:assembleDebug` SUCCESSFUL). The
+  matcher stays unit-tested + unchanged; parser + recognizer are unit-tested
+  (fake engine + the real matcher over a fixture catalog). **Manual real-card
+  acceptance PASSED on device (2026-06-21)** — see the D2/D3 status entry (10/10
+  cards resolved at the correct #1, 100% confidence); a low-confidence/empty read
+  still routes to the Confirm screen (never blocked).
+- **Size:** **L.** ML Kit Text Recognition: free, fully on-device (offline-first,
+  no recurring cost), **cross-platform** (Apple Vision is iOS-only). The native
+  ML Kit gate was cleared at kickoff.
 
 #### D2. Recognition tuning & manual fallback — `feature/recognition-tuning`
 
-- **Scope (in):** Confidence thresholds, optional multi-frame capture, graceful
-  fallback to **manual search/correction** when confidence is low.
-- **Out:** Second backend, pricing.
+- **Status: IMPLEMENTED on `feature/recognition-tuning`; PR → `development`
+  pending review (2026-06-20).** The live-accuracy gap is closed with a **routing
+  policy + manual fallback**, not matcher math: a collector number alone can't
+  disambiguate same-number cards across sets (no `setCode` on `RecognitionSource`),
+  so the honest fix is to gate low/ambiguous reads to a top-N / manual pick rather
+  than assert #1. `matchEntries` is unchanged.
+- **Why it was urgent (live finding, 2026-06-18):** D1's spike scored **10/10 on
+  pre-shot, well-composed stills**, but **live on-device accuracy is poor** — e.g.
+  _Boun_ (#104) repeatedly resolves to _Billy Bones_ (#104) at ~26%. Two cards
+  share collector number 104, so the exact tier ranks same-number cards by name
+  similarity; when the **live OCR reads the name weakly** (glare, angle, ultra-wide
+  macro distortion, motion, lighting), the wrong same-number card wins — and
+  nothing gated on the low score, so it silently saved wrong.
+- **What shipped (in):**
+  - **Pure routing policy — `decideRecognition` (`@domain/matching`):**
+    `confident | ambiguous | none`. Confident iff the top candidate clears a
+    confidence floor **and** beats #2 by an ambiguity margin; else ambiguous
+    (best-first top-N pick); empty → none. **Thresholds (tunable constants):
+    `confidentMin = 0.70`, `ambiguityMargin = 0.15`, `topN = 10`.** The single
+    tested home for the gate; the UI only routes on the decision. (Confidence is a
+    relative name-similarity, not a calibrated probability — these are routing
+    heuristics, refined against the diagnostics: `topN` was raised 5→10 after
+    on-device reads showed the correct same-number printing could land just past a
+    cap of 5 — e.g. _Baloo_ #69 at rank 6 — and so be truncated out of the pick.)
+  - **Dev diagnostics (dev-only, flag-gated `DEBUG_RECOGNITION`):** the recognizer
+    logs raw ML Kit text + parsed `RecognitionSource` + ranked candidates, so the
+    thresholds are tuned against what live OCR actually reads, not guesses. Never
+    in the release UI (`src/services/vision/recognitionDiagnostics.ts` +
+    `visionConfig`).
+  - **Manual fallback — one unified `CardSearchScreen` + `CandidateList`:** an
+    ambiguous scan seeds the list with the scan's top-N (the right same-number card
+    is on offer — the Boun case); a search box runs a debounced, name-only
+    `createCardMatcher(catalog).match({ name })` over the cached catalog. Matcher
+    reuse — **no A3 change, no new `CatalogService` method**, reuses
+    `normalizeCardName`. Pick → ConfirmSheet.
+  - **ScanScreen routing:** `confident → Confirm({ card, confidence })`;
+    `ambiguous → CardSearch({ seed: top-N })`; `none → CardSearch({})`. A
+    low-confidence/ambiguous scan **never silently asserts a wrong #1**.
+  - **ConfirmSheet decoupled** to take a chosen `{ card; confidence? }`
+    (behavior-preserving) so confident scans, ambiguous picks, and manual searches
+    all feed the one confirm+save screen; adds a **"Wrong card? Search manually"**
+    escape. Confidence stays a **hint, never a gate** — a determined user is never
+    hard-blocked.
+- **Deferred (explicit seams left):** **capture-quality / multi-frame** (the manual
+  fallback is the safety net; any future multi-frame stays still-based — a live
+  frame processor / `react-native-worklets-core` is **ask-first**); second backend
+  & pricing (D2-out); the **Mirabel** dropped-subtitle parser edge (left to the
+  fallback top-N — it ranked #1 anyway, so no blind parser over-tune); the ML Kit
+  Latin-only size trim; the `normalized_name`-index search prefilter.
 - **Depends on:** D1.
-- **Acceptance:** Low-confidence scans route to manual pick instead of guessing
-  wrong; thresholds tested.
-- **Size:** **M.**
+- **Tested:** `decideRecognition` is pure + **test-first** (clear winner; the Boun
+  case → ambiguous with Boun in the top-N; near-tie; single above/below floor;
+  empty → none; floor/margin boundary cases). RNTL for the screens (seeded top-N,
+  manual search→Confirm, the "Wrong card?" escape, ScanScreen's three routing
+  branches). Diagnostics formatter + flag unit-tested. **Full Jest suite green on
+  Node 26; `tsc` / `eslint --max-warnings=0` / `prettier --check` clean.**
+- **On-device acceptance — ✅ PASSED (iPhone 16 Pro / iOS 27, 2026-06-20):**
+  recognition is **field-SAFE** — every low-confidence read routed to the manual
+  pick with the correct card present; **zero wrong auto-saves**; correct card at #1
+  on all test scans (GIZMODUCK #105, BOUN #104, BALOO #69, DAVID XANATOS #184);
+  collector number read correctly every time; the OCR resource-leak fix held over a
+  4-capture soak (extended soak remains the DoD native exception). The one gap —
+  confidence capped below the floor so good reads route to manual — is **D3**.
+- **A3 / seam integrity:** `CardRecognizer` / `RecognitionResult` /
+  `RecognitionCandidate` / `CatalogService` and `matchEntries` all unchanged. IP
+  guardrail: hand-authored fixtures only. **Deps added (leak fix):** `patch-package`
+  (+ `postinstall`) carrying a `@react-native-ml-kit/text-recognition` patch, plus
+  the JS-side `withSingleFlight` OCR serializer — build tooling / a patched
+  existing dep, no new runtime native module.
+- **Size:** **M–L** (delivered).
+
+#### D3. Recognition confidence refinement — `feature/recognition-confidence`
+
+- **Status: ✅ COMPLETE — on-device PASSED; PR #36 → `development`, merged
+  2026-06-21.** Pure logic, test-first, full JS gate green on Node 26 (338 tests).
+  See the §0 D3 entry for the full breakdown.
+  **Version selection is anchored to the type line AND rotation-aware** — the
+  version is the nearest non-type/non-artist line to the name that sits closer than
+  the type line, measured on a rotation-detected stacking axis (2026-06-21 device
+  frames showed captures come out **sideways**); Action/Item/Location/Song cards
+  yield the bare name. **On-device acceptance PASSED: 10/10 cards correct #1 at
+  100%, zero wrong #1s.** **Decisions recorded:** number-trust lives **only in
+  `decideRecognition`** (an additive `corroboratedMin` = 0.55 floor relaxation,
+  margin gate untouched) — `matchEntries` / `rankExactTier` stay pure and
+  **unchanged** (the D2 boundary), and there is **no affine boost** in
+  `rankExactTier` (the `conf = α + (1−α)·nameSim` option was rejected as unsafe).
+  `confidentMin = 0.70` / `ambiguityMargin = 0.15` / `topN = 10` are **unchanged**;
+  0.55 is the only new threshold.
+- **Why:** D2 made recognition **field-SAFE** (no wrong auto-saves) but confidence
+  is systematically capped below the 0.70 floor, so correct reads route to the
+  manual pick (one extra tap) instead of auto-confirming. Surfaced by the D2
+  on-device run (2026-06-20).
+- **Scope (in):**
+  - **(A — priority) Fix version/subtitle selection** in `parseCardText` so it
+    picks the card's **version**, not the artist credit or ability text. Exploit
+    the Lorcana layout: `NAME` (all-caps) → version (Title Case) → `Storyborn • …`
+    type line, with the artist credit lower and prefixed by an artist glyph (OCR'd
+    `>` / `→` / `•`, often containing `/` for co-artists). Anchor the version as
+    the Title-Case line between the name and the type line, and/or exclude
+    artist-credit-shaped lines.
+  - **(B) Fold the exact collector-number match into confidence**, margin-gated so
+    same-number decoys aren't all inflated — either a number-corroboration credit
+    in `rankExactTier` (`conf = α + (1−α)·nameSim`) or a number-aware trust gate in
+    `decideRecognition`. **Record the `matchEntries` / A3 boundary decision** D2
+    deliberately left intact, and re-tune the 0.70 / 0.15 thresholds with the
+    diagnostics once (A)/(B) land.
+  - **(small parser guard)** Don't strip a single trailing digit from an otherwise
+    all-caps name — the `BALOO`→`BALO0`→`BALO` O/0-misread case, where the
+    `MADRIGAL22` stat-stripper over-fires.
+- **Out:** capture-quality / **multi-frame** (still deferred — the upstream OCR
+  ceiling an extra pass would lift, e.g. `Suited Up→Suted Up`); a second backend;
+  pricing.
+- **Depends on:** D2.
+- **Acceptance: ✅ MET.** The diagnostic cards **auto-confirm (≥ 0.70)** — on
+  fixtures (through the real chain) and **on-device: 10/10 cards correct #1 at 100%,
+  zero wrong #1s** (2026-06-21, rotated real captures, every same-number collision
+  disambiguated). Thresholds recorded (0.70 / 0.15 unchanged, 0.55 added); the
+  `matchEntries`/A3 boundary call recorded; pure logic, test-first. Extended
+  mixed-scan soak remains the standing DoD native-exception note.
+- **Priority:** version/subtitle selection > collector-number corroboration — the
+  parser fix is the dominant confidence drag and largely subsumes the number credit
+  (on clean captures the four cards clear 0.70 without it). **Size:** **M.**
 
 ### Milestone E — Hardening (mostly v1)
 
 - **E1. Edit/remove entries + manual add** — `feature/collection-edit` (M)
-- **E2. Error/offline/empty states** — `feature/error-states` (M): first-run
-  catalog download, offline behavior, no-match UX.
-- **E3. Collection search + stats** — `feature/collection-stats` (M): search,
-  counts by set, completion %.
+
+#### E2. Error/offline/empty states — `feature/error-states` (M) — ✅ complete — merged (PR #38, `393c208`) + on-device acceptance PASSED
+
+- **Scope (delivered):** first-run catalog download (progress + failure/Retry);
+  offline behavior (cached-catalog launch is fully usable; first-run-no-network →
+  setup-needed + Retry); no-match UX (`decideRecognition` → `none` routes to the
+  catalog search with a `reason:'no-match'` prompt); friendly empty-collection /
+  empty-search states.
+- **How:** an `appInitStore` (Zustand vanilla, deliberately NOT part of
+  `AppServices`) owns the startup state machine (`starting → first-run-downloading
+→ first-run-failed → ready | error`); `App` renders a gate off `phase` and
+  `compositionRoot.initialize()` is removed. The **local cache read precedes any
+  network call** so offline-with-cache never blocks; `sync()` failure is caught
+  here (the service still throws). **Reactive offline detection — no `netinfo`, no
+  new dep** (the resolved judgment call).
+- **E1 boundary held:** no-match → catalog search + pick (reuse confirm→save), NOT
+  off-catalog manual entry — that stays **E1**.
+- **A3 / seam integrity:** `CatalogService` / `sync()` / `HttpJsonClient` /
+  `CardRecognizer` / `AppServices` all untouched; 12 files, no dependency change.
+- **Tested:** 348 green on Node 26 (+10; test-first) — `appInitStore` (first-run
+  success; download-fail → retry → success; offline-with-cache usable;
+  offline-no-cache setup-needed; cached launch skips the downloading phase),
+  no-match routing, empty states. Adversarial multi-agent review: 2 low-severity
+  gaps found + fixed.
+- **✅ On-device acceptance PASSED (2026-06-21, post-merge):** airplane-mode first
+  run → setup-needed + Retry; airplane-mode cached launch → boots usable; no-match
+  scan → catalog search. PR #38 was merged before these ran, so they were post-merge
+  verification (the camera/device path is the documented DoD native exception).
+
+#### E3. Collection search + stats — `feature/collection-stats` (M) — ✅ complete — implemented test-first (PR open → `development`)
+
+- **Scope (delivered):** a **Stats** view (reached from a new Collection
+  `headerRight` button) showing overall completion % + distinct-owned / catalog
+  size, total copies, and separate off-catalog / unknown counts, plus per-set
+  rows (`setCode`, owned/size, %, copies); and an **in-place search** box on the
+  Collection list (normalized substring over name+version, plus exact
+  collectorNumber and setCode token) with a no-results state distinct from the
+  empty-collection state.
+- **How:** a pure `computeCollectionStats(entries, catalogCards)` reducer in
+  `@domain` derives the completion denominator **in-memory** from
+  `catalog.getAllCards()` — **no `CatalogService` method, no migration**; a pure
+  `collectionSearch` helper (reusing the shared `normalizeCardName`) filters the
+  saved list. Two UI surfaces only; see the **E3 decisions** record above.
+- **A3 / seam integrity:** `CatalogService` / `CollectionRepository` /
+  `AppServices` / migrations / the recognition pipeline all untouched; **no new
+  runtime deps.**
+- **Tested:** test-first for both pure units (`computeCollectionStats`,
+  `filterCollection`/`matchesQuery`) plus RNTL for the Stats screen, the header
+  button, and the Collection search (filter + no-results). Full gate green on
+  Node 26.
 
 ---
 
@@ -632,11 +1055,11 @@ first.
 
 ## 4. MVP cut line
 
-| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                    |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable. |
-| **v1**                 | D2, E1, E2, E3                                                                                       | Manual correction, edit/remove, error/offline states, stats/search — the "hardening + improved UX" the roadmap lists.                        |
-| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                           |
+| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable.                                                                                                     |
+| **v1 — ✅ complete**   | D2 ✅, D3 ✅, E1 ✅, E2 ✅, E3 ✅                                                                    | Manual correction (D2), recognition confidence refinement (D3), edit/remove (E1), error/offline states (E2), stats/search (E3) — the "hardening + improved UX" the roadmap lists. **All v1 tasks delivered; the next tier is deferred/stretch.** |
+| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                                                                                                                               |
 
 **Nuance:** C2 ships first with the _stub_ recognizer (fully runnable, just not
 "real"). D1 is what makes it MVP-grade. If OCR accuracy disappoints in the D1
@@ -647,12 +1070,12 @@ treat OCR as a fast-follow — a deliberate fallback the architecture buys you.
 
 ## Open decisions & their forcing PRs
 
-| Decision         | Forced by | Recommendation                                            |
-| ---------------- | --------- | --------------------------------------------------------- |
-| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)      |
-| State management | C2        | ✅ **Zustand** (ratified; vanilla store over the repo)    |
-| Navigation       | C2        | ✅ **React Navigation** native-stack + screens (ratified) |
-| OCR engine       | D1        | **ML Kit Text Recognition** (cross-platform, on-device)   |
+| Decision         | Forced by | Recommendation                                                             |
+| ---------------- | --------- | -------------------------------------------------------------------------- |
+| SQLite library   | B3        | ✅ **op-sqlite** (ratified; tests use `node:sqlite`)                       |
+| State management | C2        | ✅ **Zustand** (ratified; vanilla store over the repo)                     |
+| Navigation       | C2        | ✅ **React Navigation** native-stack + screens (ratified)                  |
+| OCR engine       | D1        | ✅ **ML Kit Text Recognition** (still-image; on-device; implemented at D1) |
 
 The **enchanted-vs-foil** modeling for B1 is settled (`finish = normal | foil`;
 enchanted/special are distinct `Card` rows) **and implemented in B1 (PR #17)**.
