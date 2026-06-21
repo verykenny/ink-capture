@@ -164,21 +164,26 @@ const toNameCandidate = (line: OcrTextLine): OcrTextLine => {
  * ALL-CAPS line — the card name is printed in caps, and case survives the frame-
  * height noise that lets a title-case type line or a split body fragment out-
  * measure the title. (Falls back to the tallest line overall when nothing is all-
- * caps, e.g. a fully lowercased OCR.) The subtitle is the nearest comparably-sized
- * line just beneath the name — found by height, not a band, because on real cards
- * body/flavor text is tall enough to slip past a ratio. Requiring all-framed means
- * a mixed read (some lines without frames) falls back to reading order.
+ * caps, e.g. a fully lowercased OCR.) Requiring all-framed means a mixed read
+ * (some lines without frames) falls back to reading order.
  *
- * The version is the card's true subtitle, but on live captures the height/gap
- * gates also admit the ARTIST CREDIT or an ABILITY fragment, polluting the
- * `name + version` match key. The Lorcana layout pins the version: NAME → version
- * → `Storyborn • …` type line → ability/flavor → artist credit. So three
- * predicates layer on top of height/gap: (1) a ceiling at the first type line
- * below the name — the version always sits strictly above it; (2) type-line-shaped
- * lines are never the subtitle; (3) artist-credit-shaped lines (a leading glyph or
- * a co-artist slash) are never the subtitle. On the clean fixtures these are inert
- * (the gap gate already excludes the same lines); they only bite when a credit or
- * fragment lands inside the gap window.
+ * The Lorcana layout pins the **version** precisely: NAME → version → `Storyborn •
+ * …` / `Action` / … **type line** → cost/ability/flavor → artist credit →
+ * collector. So whenever a type line is found below the name, the version is
+ * exactly the line(s) BETWEEN the name and that type line — taken by position, NOT
+ * by height. The earlier height gate (`height ≥ ½·name`) was the live-capture bug:
+ * the version prints smaller than the big all-caps name, failed the gate, and the
+ * parser fell through to the artist credit / ability text below it ("DAVID XANATOS
+ * chosen character.", "BOUN Alice Pisoni"). Anchoring to the type line instead:
+ *  - **character** cards yield `NAME version` (the version is the line just above
+ *    the `Storyborn • …` line, whatever its size);
+ *  - **Action / Item / Location / Song** cards yield the bare `NAME` — their type
+ *    line sits directly under the name with nothing between, so there is no version.
+ * Type-line- and artist-credit-shaped lines (a leading glyph or a co-artist slash)
+ * are still excluded, in case OCR drops one into the gap.
+ *
+ * When NO type line is found (a sparse or garbled read), fall back to the older
+ * heuristic: the nearest comparably-sized line just beneath the name by height/gap.
  */
 const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
   const everyFramed = candidates.every(line => (line.frame?.height ?? 0) > 0);
@@ -192,8 +197,7 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
   const nameHeight = name.frame?.height ?? 0;
 
   // The topmost type line below the name — the version sits strictly above it.
-  // Undefined when the card prints no type line (e.g. a frameless or sparse read),
-  // in which case the ceiling is vacuous.
+  // Undefined when the card prints no type line (a sparse/garbled read).
   const typeLineY = candidates
     .filter(line => (line.frame?.y ?? 0) > nameY && isTypeLine(line))
     .reduce<number | undefined>((min, line) => {
@@ -201,6 +205,22 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
       return min === undefined || y < min ? y : min;
     }, undefined);
 
+  if (typeLineY !== undefined) {
+    // Version = the title-like line(s) between the name and the type line, in
+    // reading order. No height gate — a small-printed version still counts.
+    const versionLines = candidates
+      .filter(
+        line => line !== name && !isTypeLine(line) && !isArtistCredit(line),
+      )
+      .filter(line => {
+        const y = line.frame?.y ?? 0;
+        return y > nameY && y < typeLineY;
+      })
+      .sort((a, b) => (a.frame?.y ?? 0) - (b.frame?.y ?? 0));
+    return [name, ...versionLines];
+  }
+
+  // Fallback (no type line): the nearest comparably-sized line beneath the name.
   const subtitle = candidates
     .filter(line => line !== name && !isTypeLine(line) && !isArtistCredit(line))
     .filter(line => {
@@ -208,7 +228,6 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
       const height = line.frame?.height ?? 0;
       return (
         y > nameY &&
-        (typeLineY === undefined || y < typeLineY) &&
         y - nameY <= nameHeight * SUBTITLE_MAX_GAP_RATIO &&
         height >= nameHeight * SUBTITLE_MIN_RATIO
       );

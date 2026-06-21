@@ -36,10 +36,17 @@ import {
   CARD_BILLY_BONES,
   CARD_BOUN,
   CARD_DAVID_XANATOS,
+  CARD_FALLING_RABBIT_HOLE,
   CARD_GIZMODUCK,
+  CARD_PROMISING_LEAD,
 } from '../fixtures/cards';
 
-/** The cached catalog the matcher reads — includes the #104 same-number decoy pair. */
+/**
+ * The cached catalog the matcher reads — includes the #104 same-number decoy pair
+ * (Boun/Billy-Bones) and the #162 Action decoy pair (Promising Lead / Falling Down
+ * the Rabbit Hole), so both the version-bearing and the version-less paths are
+ * exercised against a real same-number collision.
+ */
 const fixtureCatalog: CatalogReader = {
   getAllCards: async () => [
     CARD_GIZMODUCK,
@@ -47,6 +54,8 @@ const fixtureCatalog: CatalogReader = {
     CARD_DAVID_XANATOS,
     CARD_BOUN,
     CARD_BILLY_BONES,
+    CARD_PROMISING_LEAD,
+    CARD_FALLING_RABBIT_HOLE,
   ],
 };
 
@@ -178,6 +187,41 @@ describe('D3 — the four diagnostic cards clear the 0.70 floor on a clean captu
       name: 'BOUN Tireless Boatman',
     });
     expect(result.candidates[0].card).toEqual(CARD_BOUN);
+    expect(result.candidates[0].confidence).toBeGreaterThanOrEqual(0.7);
+    expect(decideRecognition(result)).toEqual({
+      kind: 'confident',
+      candidate: result.candidates[0],
+    });
+  });
+
+  test('an Action card (no version) auto-confirms on its bare name over a same-number decoy', async () => {
+    // PROMISING LEAD #162: an Action card has no version, and its type line sits
+    // directly under the name, so the parser yields the bare name. The match key is
+    // just "promising lead" → exact over the #162 Action decoy (Falling Down the
+    // Rabbit Hole, which wrongly won at ~35% on the device when flavor text leaked
+    // into the name).
+    const lines = [
+      { text: 'PROMISING LEAD', frame: f(120, 500, 700, 150) },
+      { text: 'Action', frame: f(120, 660, 240, 75) }, // type line, no version above
+      {
+        text: 'Chosen character gets +1 and gains Support this turn',
+        frame: f(120, 840, 1900, 60),
+      },
+      { text: '162/204 EN 10', frame: f(120, 1500, 320, 60) },
+    ];
+    const ocr: OcrResult = {
+      text: lines.map(l => l.text).join('\n'),
+      blocks: [{ text: lines.map(l => l.text).join('\n'), lines }],
+    };
+    const result = await recognizerOver(ocr).recognize({
+      uri: 'file:///tmp/card.jpg',
+    });
+
+    expect(result.source).toEqual({
+      collectorNumber: '162',
+      name: 'PROMISING LEAD',
+    });
+    expect(result.candidates[0].card).toEqual(CARD_PROMISING_LEAD);
     expect(result.candidates[0].confidence).toBeGreaterThanOrEqual(0.7);
     expect(decideRecognition(result)).toEqual({
       kind: 'confident',

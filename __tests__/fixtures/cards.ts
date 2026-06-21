@@ -130,6 +130,31 @@ export const CARD_DAVID_XANATOS: Card = {
   availableFinishes: ['normal', 'foil'],
 };
 
+/**
+ * An Action card — **no version** (its match key is just the name). With the
+ * Action/Item/Location/Song layout the type line sits directly under the name, so
+ * the parser must yield the bare name. CARD_FALLING_RABBIT_HOLE is a same-number
+ * (#162) Action decoy — the card that wrongly won at ~35% on the device when the
+ * parser appended flavor text. Real NAMES + NUMBERS (facts); hand-authored.
+ */
+export const CARD_PROMISING_LEAD: Card = {
+  id: 'AZS-162',
+  name: 'Promising Lead',
+  setCode: 'AZS',
+  collectorNumber: '162',
+  rarity: 'Common',
+  availableFinishes: ['normal', 'foil'],
+};
+
+export const CARD_FALLING_RABBIT_HOLE: Card = {
+  id: 'URR-162',
+  name: 'Falling Down the Rabbit Hole',
+  setCode: 'URR',
+  collectorNumber: '162',
+  rarity: 'Uncommon',
+  availableFinishes: ['normal', 'foil'],
+};
+
 /** Build a NewCollectionEntry (pre-persistence) over sensible defaults. */
 export const newEntry = (
   overrides: Partial<NewCollectionEntry> = {},
