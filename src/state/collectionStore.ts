@@ -28,6 +28,13 @@ export interface CollectionState {
   load(): Promise<void>;
   /** Persist an entry (merge-on-insert) and reflect the refreshed list. */
   add(entry: NewCollectionEntry): Promise<CollectionEntry>;
+  /** Edit an entry (merge-on-edit) and reflect the refreshed list. */
+  update(
+    id: string,
+    changes: Partial<NewCollectionEntry>,
+  ): Promise<CollectionEntry>;
+  /** Delete an entry and reflect the refreshed list. */
+  remove(id: string): Promise<void>;
 }
 
 export type CollectionStore = StoreApi<CollectionState>;
@@ -73,5 +80,41 @@ export const createCollectionStore = (
         set({ status: 'ready', error: undefined });
       }
       return created;
+    },
+
+    update: async (id, changes) => {
+      let updated: CollectionEntry;
+      try {
+        updated = await repo.update(id, changes);
+      } catch (error) {
+        // Only a failed WRITE is a failure.
+        set({ status: 'error', error: messageOf(error) });
+        throw error;
+      }
+      // The edit committed; re-list so a merge (source folded into another stack)
+      // vs. an in-place edit is reflected exactly as the repository resolved it. A
+      // failed *refresh* must not report the committed edit as a failure.
+      try {
+        const entries = await repo.list();
+        set({ entries, status: 'ready', error: undefined });
+      } catch {
+        set({ status: 'ready', error: undefined });
+      }
+      return updated;
+    },
+
+    remove: async id => {
+      try {
+        await repo.remove(id);
+      } catch (error) {
+        set({ status: 'error', error: messageOf(error) });
+        throw error;
+      }
+      try {
+        const entries = await repo.list();
+        set({ entries, status: 'ready', error: undefined });
+      } catch {
+        set({ status: 'ready', error: undefined });
+      }
     },
   }));

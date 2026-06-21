@@ -103,6 +103,8 @@ export const createCollectionRepository = (
       }
     }
 
+    // No mappable fields → nothing to write: return the current row unchanged
+    // (no updated_at bump), or throw if it's gone. A pure read, so no transaction.
     if (assignments.length === 0) {
       const current = await findById(id);
       if (current === null) {
@@ -111,19 +113,53 @@ export const createCollectionRepository = (
       return current;
     }
 
-    assignments.push('updated_at = ?');
-    params.push(now());
-    params.push(Number(id));
+    // A finish/condition/card edit can move the row onto another stack's identity
+    // and hit the UNIQUE index. Resolve the resulting identity against the OTHER
+    // stacks with B1's resolveAddition so the edit MERGES into an occupied tuple
+    // instead of throwing — all in one transaction, so a partial merge (target
+    // bumped but source not yet deleted) can never persist.
+    return withTransaction(db, async () => {
+      const current = await findById(id);
+      if (current === null) {
+        throw new Error(`update: no collection entry with id ${id}`);
+      }
 
-    const result = await db.execute(
-      `UPDATE ${TABLE} SET ${assignments.join(', ')} WHERE id = ? RETURNING *`,
-      params,
-    );
-    const [row] = result.rows;
-    if (row === undefined) {
-      throw new Error(`update: no collection entry with id ${id}`);
-    }
-    return rowToEntry(row);
+      const resulting: NewCollectionEntry = {
+        cardId: changes.cardId ?? current.cardId,
+        quantity: changes.quantity ?? current.quantity,
+        finish: changes.finish ?? current.finish,
+        condition: changes.condition ?? current.condition,
+      };
+
+      const others = await db.execute(
+        `SELECT * FROM ${TABLE} ` +
+          'WHERE card_id = ? AND finish = ? AND condition = ? AND id <> ?',
+        [resulting.cardId, resulting.finish, resulting.condition, Number(id)],
+      );
+      const outcome = resolveAddition(others.rows.map(rowToEntry), resulting);
+
+      if (outcome.kind === 'create') {
+        // Free tuple (incl. editing onto the row's own identity): re-key the
+        // source row in place with the requested changes.
+        const result = await db.execute(
+          `UPDATE ${TABLE} SET ${assignments.join(', ')}, updated_at = ? ` +
+            'WHERE id = ? RETURNING *',
+          [...params, now(), Number(id)],
+        );
+        return rowToEntry(requireRow(result.rows, 'update/create'));
+      }
+
+      // Occupied tuple: fold this row into the target stack — sum the quantity
+      // onto the target (keeping the target's notes, dropping the source's), then
+      // delete the now-merged source row.
+      const merged = await db.execute(
+        `UPDATE ${TABLE} SET quantity = ?, updated_at = ? WHERE id = ? RETURNING *`,
+        [outcome.quantity, now(), Number(outcome.targetId)],
+      );
+      const mergedRow = requireRow(merged.rows, 'update/increment');
+      await db.execute(`DELETE FROM ${TABLE} WHERE id = ?`, [Number(id)]);
+      return rowToEntry(mergedRow);
+    });
   };
 
   /**

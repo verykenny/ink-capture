@@ -174,17 +174,159 @@ describe('SqliteCollectionRepository', () => {
       );
     });
 
-    test('changing identity onto an existing stack rejects (UNIQUE) and leaves both rows intact', async () => {
-      const normalId = await seed(db, { cardId: 'C', finish: 'normal' });
-      await seed(db, { cardId: 'C', finish: 'foil' });
+    test('an edit onto an occupied stack MERGES (summed quantity, source deleted, one row)', async () => {
+      // Supersedes the old B3 "rejects (UNIQUE)" contract: moving a row onto
+      // another stack's identity now folds the two together transactionally.
+      const normalId = await seed(db, {
+        cardId: 'C',
+        finish: 'normal',
+        quantity: 2,
+      });
+      const foilId = await seed(db, {
+        cardId: 'C',
+        finish: 'foil',
+        quantity: 3,
+      });
 
-      // Moving the normal stack onto the foil stack's identity collides.
-      await expect(repo.update(normalId, { finish: 'foil' })).rejects.toThrow(
-        /UNIQUE/i,
+      const merged = await repo.update(normalId, { finish: 'foil' });
+
+      // The foil stack absorbs the normal stack: target id, summed quantity.
+      expect(merged.id).toBe(foilId);
+      expect(merged.finish).toBe('foil');
+      expect(merged.quantity).toBe(5); // 3 (target) + 2 (source)
+      expect(merged.updatedAt).toBe(FIXED_NOW);
+      // The source row is gone and only the merged stack remains.
+      expect(await repo.getById(normalId)).toBeNull();
+      expect(await repo.list()).toHaveLength(1);
+    });
+
+    test('a simultaneous quantity-and-identity edit merges the SOURCE’s RESULTING quantity', async () => {
+      // Distinguishes summing the source's resulting quantity (the edited value)
+      // from summing its stale current quantity: current=2, resulting=10, so a
+      // regression to current would give 3+2=5 instead of the correct 3+10=13.
+      const normalId = await seed(db, {
+        cardId: 'C',
+        finish: 'normal',
+        quantity: 2,
+      });
+      const foilId = await seed(db, {
+        cardId: 'C',
+        finish: 'foil',
+        quantity: 3,
+      });
+
+      const merged = await repo.update(normalId, {
+        finish: 'foil',
+        quantity: 10,
+      });
+
+      expect(merged.id).toBe(foilId);
+      expect(merged.quantity).toBe(13); // 3 (target) + 10 (source's RESULTING qty)
+      expect(await repo.getById(normalId)).toBeNull();
+      expect(await repo.list()).toHaveLength(1);
+    });
+
+    test('a free re-key (identity onto an unoccupied tuple) updates in place — no merge', async () => {
+      const id = await seed(db, {
+        cardId: 'C',
+        finish: 'normal',
+        quantity: 2,
+      });
+
+      const updated = await repo.update(id, { finish: 'foil' });
+
+      expect(updated.id).toBe(id); // same row, re-keyed (not a merge target)
+      expect(updated.finish).toBe('foil');
+      expect(updated.quantity).toBe(2); // untouched
+      expect(updated.updatedAt).toBe(FIXED_NOW);
+      expect(await repo.list()).toHaveLength(1);
+    });
+
+    test('editing a field onto its own identity updates in place (no self-merge, no delete)', async () => {
+      const id = await seed(db, {
+        cardId: 'C',
+        finish: 'foil',
+        quantity: 1,
+        updatedAt: '2020-01-01T00:00:00.000Z',
+      });
+
+      // finish is unchanged → resulting identity == current; the row must not
+      // try to merge into itself (self is excluded from the identity query).
+      const updated = await repo.update(id, { finish: 'foil' });
+
+      expect(updated.id).toBe(id);
+      expect(updated.finish).toBe('foil');
+      expect(updated.updatedAt).toBe(FIXED_NOW); // a mappable field → bumped
+      expect(await repo.list()).toHaveLength(1);
+    });
+
+    test('on a merge the target keeps its notes and the source notes are dropped', async () => {
+      const normalId = await seed(db, {
+        cardId: 'C',
+        finish: 'normal',
+        quantity: 2,
+        notes: 'source notes',
+      });
+      await seed(db, {
+        cardId: 'C',
+        finish: 'foil',
+        quantity: 3,
+        notes: 'target notes',
+      });
+
+      const merged = await repo.update(normalId, { finish: 'foil' });
+
+      expect(merged.quantity).toBe(5);
+      expect(merged.notes).toBe('target notes'); // target's notes kept (mirrors add())
+      expect(await repo.getById(normalId)).toBeNull(); // source + its notes gone
+    });
+
+    test('a merge runs in one transaction: BEGIN → COMMIT, never ROLLBACK', async () => {
+      const normalId = await seed(db, {
+        cardId: 'C',
+        finish: 'normal',
+        quantity: 2,
+      });
+      await seed(db, { cardId: 'C', finish: 'foil', quantity: 3 });
+      const recording = new RecordingSqliteDatabase(db);
+      const r = createCollectionRepository(recording, { now: () => FIXED_NOW });
+
+      await r.update(normalId, { finish: 'foil' });
+
+      expect(recording.verbs).toContain('BEGIN');
+      expect(recording.verbs).toContain('COMMIT');
+      expect(recording.verbs).not.toContain('ROLLBACK');
+    });
+
+    test('a mid-merge failure rolls back atomically: BEGIN → ROLLBACK, both rows intact', async () => {
+      const normalId = await seed(db, {
+        cardId: 'C',
+        finish: 'normal',
+        quantity: 2,
+      });
+      const foilId = await seed(db, {
+        cardId: 'C',
+        finish: 'foil',
+        quantity: 3,
+      });
+      // Fail the source DELETE — AFTER the target was already bumped — so a
+      // half-applied merge would persist unless the whole thing is atomic.
+      const recording = new RecordingSqliteDatabase(db, sql =>
+        /^DELETE/i.test(sql.trim()),
       );
-      // Neither row was mutated or lost.
-      expect(await repo.list()).toHaveLength(2);
+      const r = createCollectionRepository(recording, { now: () => FIXED_NOW });
+
+      await expect(r.update(normalId, { finish: 'foil' })).rejects.toThrow(
+        /injected/,
+      );
+
+      expect(recording.verbs).toContain('BEGIN');
+      expect(recording.verbs).toContain('ROLLBACK');
+      expect(recording.verbs).not.toContain('COMMIT');
+      // The target bump was rolled back and the source survives untouched.
+      expect((await repo.getById(foilId))?.quantity).toBe(3);
       expect((await repo.getById(normalId))?.finish).toBe('normal');
+      expect(await repo.list()).toHaveLength(2);
     });
   });
 
