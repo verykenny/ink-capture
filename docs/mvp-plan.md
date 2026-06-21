@@ -295,10 +295,14 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
 - **Next action:** **D1 + native CI are merged into `development`** (PRs #27/#29);
   scan capture then gained **tap-to-focus + ultra-wide macro autofocus + pinch
   zoom** (PR #30) after on-device testing showed the default wide lens couldn't
-  focus close enough to read a card. **D2 is now the priority and more urgent than
-  planned:** the spike scored 10/10 on curated stills, but **live on-device
-  accuracy is poor** — e.g. _Boun_ (#104) repeatedly resolves to _Billy Bones_
-  (#104) at ~26%. See the expanded D2 below.
+  focus close enough to read a card. **D2 is now implemented on
+  `feature/recognition-tuning` (PR → `development` pending review):** a pure
+  `decideRecognition` routing policy (floor 0.70 / margin 0.15 / top-N 5), a
+  unified manual-pick / search screen, the "Wrong card?" escape, and dev-only
+  flag-gated diagnostics — so a low-confidence or ambiguous scan (the _Boun_ #104
+  case) routes to a top-N / manual pick instead of silently saving the wrong card.
+  On-device threshold confirmation is the remaining manual step. See the expanded
+  D2 below.
 
 **Settled decisions (don't re-litigate):**
 
@@ -671,36 +675,69 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 
 #### D2. Recognition tuning & manual fallback — `feature/recognition-tuning`
 
-- **Why it's now urgent (live finding, 2026-06-18):** D1's spike scored **10/10 on
+- **Status: IMPLEMENTED on `feature/recognition-tuning`; PR → `development`
+  pending review (2026-06-20).** The live-accuracy gap is closed with a **routing
+  policy + manual fallback**, not matcher math: a collector number alone can't
+  disambiguate same-number cards across sets (no `setCode` on `RecognitionSource`),
+  so the honest fix is to gate low/ambiguous reads to a top-N / manual pick rather
+  than assert #1. `matchEntries` is unchanged.
+- **Why it was urgent (live finding, 2026-06-18):** D1's spike scored **10/10 on
   pre-shot, well-composed stills**, but **live on-device accuracy is poor** — e.g.
   _Boun_ (#104) repeatedly resolves to _Billy Bones_ (#104) at ~26%. Two cards
   share collector number 104, so the exact tier ranks same-number cards by name
   similarity; when the **live OCR reads the name weakly** (glare, angle, ultra-wide
-  macro distortion, motion, lighting), the wrong same-number card wins. Closing the
-  gap between the spike's curated stills and real live captures is the core job.
-- **Scope (in):**
-  - **Diagnose live capture/OCR quality first:** a dev overlay (or logging) of the
-    raw ML Kit text + parsed `RecognitionSource` + ranked candidates from real
-    scans, to see what OCR actually reads live vs the clean spike stills.
-  - **Confidence thresholds:** below a floor, don't assert a wrong #1 — route to a
-    manual pick.
-  - **Show top-N candidates** on Confirm (not just #1) so the user can choose the
-    right same-number card; **manual search/correction** as the fallback.
-  - **Capture quality:** optional **multi-frame** capture (snap a few, keep the
-    sharpest / best OCR); evaluate **wide vs ultra-wide** for text sharpness (the
-    ultra-wide macro focuses close but distorts — a sharp wide shot may OCR
-    better); consider a brief focus-settle/stability gate before the shutter.
-  - **Matcher ranking:** when the name is weak, require a **name-similarity floor**
-    and/or weight the exact collector-number signal so a poor name read can't flip
-    to the wrong same-number card.
-- **Out:** Second backend, pricing.
+  macro distortion, motion, lighting), the wrong same-number card wins — and
+  nothing gated on the low score, so it silently saved wrong.
+- **What shipped (in):**
+  - **Pure routing policy — `decideRecognition` (`@domain/matching`):**
+    `confident | ambiguous | none`. Confident iff the top candidate clears a
+    confidence floor **and** beats #2 by an ambiguity margin; else ambiguous
+    (best-first top-N pick); empty → none. **Thresholds (tunable constants):
+    `confidentMin = 0.70`, `ambiguityMargin = 0.15`, `topN = 5`.** The single
+    tested home for the gate; the UI only routes on the decision. (Confidence is a
+    relative name-similarity, not a calibrated probability — these are routing
+    heuristics, refined against the diagnostics.)
+  - **Dev diagnostics (dev-only, flag-gated `DEBUG_RECOGNITION`):** the recognizer
+    logs raw ML Kit text + parsed `RecognitionSource` + ranked candidates, so the
+    thresholds are tuned against what live OCR actually reads, not guesses. Never
+    in the release UI (`src/services/vision/recognitionDiagnostics.ts` +
+    `visionConfig`).
+  - **Manual fallback — one unified `CardSearchScreen` + `CandidateList`:** an
+    ambiguous scan seeds the list with the scan's top-N (the right same-number card
+    is on offer — the Boun case); a search box runs a debounced, name-only
+    `createCardMatcher(catalog).match({ name })` over the cached catalog. Matcher
+    reuse — **no A3 change, no new `CatalogService` method**, reuses
+    `normalizeCardName`. Pick → ConfirmSheet.
+  - **ScanScreen routing:** `confident → Confirm({ card, confidence })`;
+    `ambiguous → CardSearch({ seed: top-N })`; `none → CardSearch({})`. A
+    low-confidence/ambiguous scan **never silently asserts a wrong #1**.
+  - **ConfirmSheet decoupled** to take a chosen `{ card; confidence? }`
+    (behavior-preserving) so confident scans, ambiguous picks, and manual searches
+    all feed the one confirm+save screen; adds a **"Wrong card? Search manually"**
+    escape. Confidence stays a **hint, never a gate** — a determined user is never
+    hard-blocked.
+- **Deferred (explicit seams left):** **capture-quality / multi-frame** (the manual
+  fallback is the safety net; any future multi-frame stays still-based — a live
+  frame processor / `react-native-worklets-core` is **ask-first**); second backend
+  & pricing (D2-out); the **Mirabel** dropped-subtitle parser edge (left to the
+  fallback top-N — it ranked #1 anyway, so no blind parser over-tune); the ML Kit
+  Latin-only size trim; the `normalized_name`-index search prefilter.
 - **Depends on:** D1.
-- **Acceptance:** Live scans of well-lit cards resolve to the correct card (or
-  surface it in a usable top-N / manual pick) at a rate near the spike's; a
-  low-confidence scan never silently asserts a wrong #1; thresholds tested. The
-  **"Boun → Billy Bones"** case resolves correctly or surfaces Boun in the top-N.
-- **Carry-over:** the Mirabel dropped-subtitle parser edge from the D1 spike.
-- **Size:** **M–L** (was M; the live-accuracy gap widened it).
+- **Tested:** `decideRecognition` is pure + **test-first** (clear winner; the Boun
+  case → ambiguous with Boun in the top-N; near-tie; single above/below floor;
+  empty → none; floor/margin boundary cases). RNTL for the screens (seeded top-N,
+  manual search→Confirm, the "Wrong card?" escape, ScanScreen's three routing
+  branches). Diagnostics formatter + flag unit-tested. **Full Jest suite green on
+  Node 26; `tsc` / `eslint --max-warnings=0` / `prettier --check` clean.**
+- **On-device acceptance:** a checklist is in the PR for a human device run
+  (turn on `DEBUG_RECOGNITION`, confirm the threshold choices against real reads,
+  the Boun #104 case resolves or surfaces Boun in the top-N, a low-confidence scan
+  routes to manual, a manual search→save) — **pending the device run**; the camera/
+  OCR path is the documented DoD native exception (not unit-testable in Jest).
+- **A3 / seam integrity:** `CardRecognizer` / `RecognitionResult` /
+  `RecognitionCandidate` / `CatalogService` and `matchEntries` all unchanged; no
+  new dependency. IP guardrail: hand-authored fixtures only.
+- **Size:** **M–L** (delivered).
 
 ### Milestone E — Hardening (mostly v1)
 
