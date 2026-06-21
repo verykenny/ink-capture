@@ -3,12 +3,23 @@
 // Copy this to `Signing.local.xcconfig` (git-ignored) and set your Team ID:
 //   cp ios/Signing.local.xcconfig.example ios/Signing.local.xcconfig
 //
-// Find your Team ID in Xcode → Settings → Accounts → (your team), or run:
-//   security find-identity -v -p codesigning   # the 10-char ID in parentheses
+// Find your TEAM ID — it is the certificate's OU (Organizational Unit), NOT the
+// id in the cert name's parentheses (that one is the cert's own UID/CN id):
+//   security find-certificate -p -c "YOUR NAME" | \
+//     openssl x509 -noout -subject -nameopt sep_multiline | grep OU=
+// Or: Xcode → Settings → Accounts → your team → Manage… shows it.
 //
-// The Podfile's post_install hook appends an optional `#include?` of
+// The Podfile post_install hook appends an optional `#include?` of
 // `Signing.local.xcconfig` to the app's Pods base xcconfig, so running
 //   bundle exec pod install
 // wires it up. Because the include is optional, a clone WITHOUT this file
 // (e.g. CI) still builds — it just won't have a signing team set.
+//
+// NOTE: building to a physical device from the CLI also needs a provisioning
+// profile. `npm run ios` does NOT pass -allowProvisioningUpdates, so the first
+// device build per profile must be done via Xcode (⌘R) or:
+//   xcodebuild -workspace ios/InkCapture.xcworkspace -scheme InkCapture \
+//     -configuration Debug -destination 'id=<device-udid>' \
+//     -allowProvisioningUpdates build
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
+CODE_SIGN_STYLE = Automatic
