@@ -329,8 +329,19 @@ lines…`). Fix: when a type line is found below the name, the **version is the
     glyph or a co-artist `Name / Name` slash — are still excluded). So **character**
     cards yield `NAME version` whatever the version's size, and **Action / Item /
     Location / Song** cards yield the **bare NAME** (their type line sits directly
-    under the name, nothing between → no version). The height/gap heuristic is kept
-    only as the fallback when no type line is found.
+    under the name, nothing between → no version).
+  - **Rotation-aware (the decisive on-device finding).** A second device run
+    (per-line frames now dumped in the diagnostics) showed the captures come out
+    **sideways** — ML Kit reports each line as `w≈capHeight, h≈textLength`, so the
+    card's top-to-bottom axis is the image **X** axis, not Y, and the y-based
+    ordering scrambled. `selectTitleLines` now **detects rotation** from the lines
+    (text is always longer than tall) and measures cap height + a stacking position
+    on the detected axis; the version is the nearest non-type, non-artist line to
+    the name that sits **closer than the type line** (the type line is the anchor —
+    no height ratios). Validated against the **verbatim device frames** (THOMAS,
+    DAVID XANATOS, GIZMODUCK, PROMISING LEAD). _(Upstream follow-up: applying the
+    capture's EXIF/orientation before ML Kit would avoid the sideways read at the
+    source — a separate `MlKitOcrEngine`/capture change.)_
   - **(small guard) BALOO trailing-digit:** `TRAILING_NUMBER` narrowed from
     `\s*\d+\s*$` to `(?:\s+\d+|\d{2,})\s*$` — a single digit fused to letters
     (`BALO0`, an O/0 misread) is kept; a whitespace-separated digit or a 2+-digit run
