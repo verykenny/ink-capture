@@ -15,8 +15,10 @@
  *    `"name version"` key lines up. Found by height, not a band: real cards print
  *    big lore/strength glyphs (OCR'd "O4", "43") that are taller than the name,
  *    and body text tall enough to slip past a simple ratio — so stat glyphs and a
- *    stat digit merged onto the name ("MADRIGAL22") are stripped, and the
- *    collector line + body/flavor text fall out by position. Without frames it
+ *    merged stat digit ("MADRIGAL22", whitespace-separated, or 2+ digits) are
+ *    stripped, while a single digit fused to letters is kept as a likely O/0
+ *    misread ("BALO0"), and the collector line + body/flavor text fall out by
+ *    position. Without frames it
  *    falls back to the first substantial lines in reading order. Best-effort —
  *    the matcher and the user's confirmation absorb the rest.
  *
@@ -32,8 +34,14 @@ import type { OcrResult, OcrTextBlock, OcrTextLine } from './OcrEngine';
 /** Printed collector number `123/204` — captures the numerator group. */
 const COLLECTOR_NUMBER = /(\d{1,3})\s*\/\s*\d{1,3}/;
 
-/** A trailing stat number merged onto a line (the "22" in OCR'd "MADRIGAL22"). */
-const TRAILING_NUMBER = /\s*\d+\s*$/;
+/**
+ * A trailing stat number merged onto a line: either whitespace-separated
+ * (`MIRABEL MADRIGAL 22`) or a run of 2+ digits (the "22" in OCR'd "MADRIGAL22").
+ * A SINGLE digit fused directly to letters is deliberately NOT matched — it is
+ * almost always an O/0 (or I/1, S/5, B/8) misread of the name's last glyph
+ * ("BALOO" → "BALO0"), and stripping it would drop a real letter.
+ */
+const TRAILING_NUMBER = /(?:\s+\d+|\d{2,})\s*$/;
 
 /** A name candidate needs at least this many letters — excludes stat glyphs ("O4", "43"). */
 const MIN_NAME_LETTERS = 3;

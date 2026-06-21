@@ -584,3 +584,57 @@ describe('parseCardText — the four diagnostic cards resolve to NAME + version'
     });
   });
 });
+
+/**
+ * D3 trailing-digit guard (test-first). The stat-digit stripper over-fired on
+ * `BALOO`: OCR read the final O as a 0 → `BALO0`, and the stripper took the 0 →
+ * `BALO`, dropping a real letter and degrading the match. A SINGLE digit fused to
+ * letters is almost always an O/0 (or I/1, S/5, B/8) misread, not a merged stat;
+ * a whitespace-separated digit or a run of 2+ digits is a real stat. So strip only
+ * the latter and keep a single fused digit.
+ */
+describe('parseCardText — a single fused trailing digit is an O/0 misread, kept', () => {
+  test('BALO0 (final O misread as 0) is kept, not truncated to BALO', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALO0', f(120, 500, 400, 130)),
+        line('69/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '69', name: 'BALO0' });
+  });
+
+  test('the fused misread digit survives so the version still joins the key', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALO0', f(120, 500, 400, 130)),
+        line('Laid-Back Bear', f(120, 640, 420, 90)),
+        line('69/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '69',
+      name: 'BALO0 Laid-Back Bear',
+    });
+  });
+
+  test('a run of 2+ fused digits is a real stat and is still stripped (MADRIGAL22 → MADRIGAL)', () => {
+    const result = parseCardText(
+      ocr([
+        line('MADRIGAL22', f(120, 500, 500, 130)),
+        line('19/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '19', name: 'MADRIGAL' });
+  });
+
+  test('a whitespace-separated trailing digit is a stat and is still stripped', () => {
+    const result = parseCardText(
+      ocr([
+        line('GASTON 5', f(120, 500, 400, 130)),
+        line('100/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '100', name: 'GASTON' });
+  });
+});
