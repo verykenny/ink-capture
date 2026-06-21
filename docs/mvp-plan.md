@@ -383,16 +383,31 @@ lines…`). Fix: when a type line is found below the name, the **version is the
     name, confirming the fuzzy-name resilience. Captured via the new
     `DEBUG_RECOGNITION` Share/export + per-line frame dump. _(Extended mixed-scan
     soak remains the standing DoD native-exception note.)_
-- **Next action (recommended):** **D3 is field-complete** (on-device acceptance
-  passed). Merge PR #36, then start **E1–E3 hardening** (edit/remove + manual add,
-  error/offline/empty states, collection search + stats). Two recognition follow-ups
-  are now well-characterised and worth scheduling: **(i) capture orientation** —
-  apply the still's EXIF/orientation before ML Kit so reads aren't sideways at the
-  source (a `MlKitOcrEngine` change; would also lift OCR accuracy generally), and
-  **(ii) lenient collector-number parse** — OCR sometimes drops the `/` (`391204`,
-  `/204`), losing the number; the name carries it today, but a tolerant `N/204`
-  parse would restore the corroboration signal. Capture-quality / **multi-frame**
-  remains the next reliability lever (deferred; tracked separately).
+- \*\*E2 error/offline/empty states is implemented — ⏳ pending on-device acceptance
+  - merge** (`feature/error-states`, PR #38 → `development`, OPEN): a new
+    `appInitStore` startup state machine gates the app — it reads the **local catalog
+    cache before any network call**, so an offline launch with a cached catalog boots
+    straight to `ready` (the network `sync()` becomes a fail-soft background refresh)
+    and only a first run with no cache awaits the download. Offline-no-cache and a
+    download error collapse to one recoverable `first-run-failed` → Retry; hard
+    failures (DB init, a broken local read) surface an error gate instead of a hung
+    spinner. No-match scans route to the catalog search with a `reason:'no-match'`
+    prompt; empty-collection / empty-search states are friendly and test-locked.
+    **Reactive offline detection — no `netinfo`, no new dep; A3 contracts + `sync()` /
+    `HttpJsonClient` + `AppServices` untouched** (12 files). Gate green on Node 26
+    (348 tests, +10; test-first). An adversarial multi-agent review found 2
+    low-severity hardening gaps, both fixed. **Architect code review PASSED.\*\*
+  * **⏳ Merge is gated on 3 on-device manual-acceptance checks** (airplane-mode
+    first run; airplane-mode cached launch; a no-match scan) — they need a physical
+    device and are unchecked boxes in PR #38 for human sign-off.
+- **Recognition follow-ons (tracked, unscheduled):** (i) capture orientation
+  (EXIF before ML Kit — small native change, also lifts OCR accuracy); (ii) lenient
+  `N/204` collector-number parse (pure logic). Capture-quality / **multi-frame**
+  remains the deferred reliability lever. Touch opportunistically; not E2 work.
+- **Next action:** finish **E2** (run the 3 device checks → merge PR #38), then
+  **E1** (edit/remove + manual add — incl. the off-catalog manual entry E2
+  deliberately excluded; mind the B3 `update()`-into-existing-stack UNIQUE edge)
+  and **E3** (collection search + stats).
 
 **Settled decisions (don't re-litigate):**
 
@@ -891,8 +906,34 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 ### Milestone E — Hardening (mostly v1)
 
 - **E1. Edit/remove entries + manual add** — `feature/collection-edit` (M)
-- **E2. Error/offline/empty states** — `feature/error-states` (M): first-run
-  catalog download, offline behavior, no-match UX.
+
+#### E2. Error/offline/empty states — `feature/error-states` (M) — ⏳ implemented; on-device acceptance + merge pending (PR #38)
+
+- **Scope (delivered):** first-run catalog download (progress + failure/Retry);
+  offline behavior (cached-catalog launch is fully usable; first-run-no-network →
+  setup-needed + Retry); no-match UX (`decideRecognition` → `none` routes to the
+  catalog search with a `reason:'no-match'` prompt); friendly empty-collection /
+  empty-search states.
+- **How:** an `appInitStore` (Zustand vanilla, deliberately NOT part of
+  `AppServices`) owns the startup state machine (`starting → first-run-downloading
+→ first-run-failed → ready | error`); `App` renders a gate off `phase` and
+  `compositionRoot.initialize()` is removed. The **local cache read precedes any
+  network call** so offline-with-cache never blocks; `sync()` failure is caught
+  here (the service still throws). **Reactive offline detection — no `netinfo`, no
+  new dep** (the resolved judgment call).
+- **E1 boundary held:** no-match → catalog search + pick (reuse confirm→save), NOT
+  off-catalog manual entry — that stays **E1**.
+- **A3 / seam integrity:** `CatalogService` / `sync()` / `HttpJsonClient` /
+  `CardRecognizer` / `AppServices` all untouched; 12 files, no dependency change.
+- **Tested:** 348 green on Node 26 (+10; test-first) — `appInitStore` (first-run
+  success; download-fail → retry → success; offline-with-cache usable;
+  offline-no-cache setup-needed; cached launch skips the downloading phase),
+  no-match routing, empty states. Adversarial multi-agent review: 2 low-severity
+  gaps found + fixed.
+- **⏳ On-device acceptance (human, before merge):** airplane-mode first run;
+  airplane-mode cached launch; a no-match scan — unchecked boxes in PR #38 (the
+  camera/device path is the documented DoD native exception).
+
 - **E3. Collection search + stats** — `feature/collection-stats` (M): search,
   counts by set, completion %.
 
