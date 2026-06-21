@@ -67,13 +67,28 @@ export const formatRecognitionDiagnostics = (
 // On a bundled device build with no debugger attached, console.log has nowhere to
 // surface — so the dev overlay (RecognitionDiagnosticsOverlay) reads the latest
 // block from here instead. useSyncExternalStore-compatible: subscribe(onChange)
-// returns an unsubscribe, getLastRecognitionDiagnostics() is the snapshot.
+// returns an unsubscribe, getLastRecognitionDiagnostics() is the snapshot. A
+// bounded session history is also kept so every capture can be exported (shared)
+// at once — screenshotting each read is tedious.
 let lastBlock: string | undefined;
+const history: string[] = [];
+/** Cap the exportable history so a long session can't grow without bound. */
+const MAX_HISTORY = 30;
+/** Divider between captures in the exported history. */
+const HISTORY_DIVIDER = '\n\n────────────────────────────\n\n';
 const listeners = new Set<() => void>();
 
 /** The latest formatted diagnostics block, or undefined before the first scan. */
 export const getLastRecognitionDiagnostics = (): string | undefined =>
   lastBlock;
+
+/**
+ * Every diagnostics block captured this session (oldest → newest, capped),
+ * joined into one string for off-device export (the overlay's Share button).
+ * Empty before the first scan; resets on app relaunch (module state).
+ */
+export const getRecognitionDiagnosticsHistory = (): string =>
+  history.join(HISTORY_DIVIDER);
 
 /** Subscribe to diagnostics updates; returns an unsubscribe. */
 export const subscribeRecognitionDiagnostics = (
@@ -95,7 +110,11 @@ export const logRecognitionDiagnostics = (
   const block = formatRecognitionDiagnostics(diagnostics);
   console.log(block);
   // Publish to the on-screen overlay (the only channel a bundled, debugger-less
-  // device build can actually show).
+  // device build can actually show), and append to the exportable history.
   lastBlock = block;
+  history.push(block);
+  if (history.length > MAX_HISTORY) {
+    history.shift();
+  }
   listeners.forEach(listener => listener());
 };

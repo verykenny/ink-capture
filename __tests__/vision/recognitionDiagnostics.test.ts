@@ -14,6 +14,7 @@ import Config from 'react-native-config';
 import {
   formatRecognitionDiagnostics,
   getLastRecognitionDiagnostics,
+  getRecognitionDiagnosticsHistory,
   logRecognitionDiagnostics,
   subscribeRecognitionDiagnostics,
 } from '@services';
@@ -144,5 +145,29 @@ describe('recognition diagnostics sink (for the on-screen overlay)', () => {
     (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
     logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('accumulates a session history (newest last) for one-tap export', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
+    const before = getRecognitionDiagnosticsHistory();
+
+    const first = { ocr: OCR, source: SOURCE, result: RESULT };
+    const second = {
+      ocr: { text: 'SECOND CARD\n7/204', blocks: [] },
+      source: { collectorNumber: '7', name: 'second card' },
+      result: { candidates: [] } as RecognitionResult,
+    };
+    logRecognitionDiagnostics(first);
+    logRecognitionDiagnostics(second);
+
+    const history = getRecognitionDiagnosticsHistory();
+    // Both captures are present, second after first (export order), and the
+    // history grew — so a session of reads can be shared in one go.
+    expect(history).toContain(formatRecognitionDiagnostics(first));
+    expect(history).toContain(formatRecognitionDiagnostics(second));
+    expect(history.indexOf('SECOND CARD')).toBeGreaterThan(
+      history.indexOf(SOURCE.name ?? ''),
+    );
+    expect(history.length).toBeGreaterThan(before.length);
   });
 });

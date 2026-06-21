@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import { Share } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import Config from 'react-native-config';
 import { RecognitionDiagnosticsOverlay } from '@ui/dev/RecognitionDiagnosticsOverlay';
@@ -63,7 +64,7 @@ test('shows the latest scan block (the Boun case) on-screen when the flag is on'
   ).toBeOnTheScreen();
 });
 
-test('tapping collapses the readout', () => {
+test('tapping the header collapses the readout', () => {
   enableFlag();
   logRecognitionDiagnostics(DIAG);
   render(<RecognitionDiagnosticsOverlay />);
@@ -72,4 +73,23 @@ test('tapping collapses the readout', () => {
 
   expect(screen.getByText(/recognition diagnostics \(tap\)/)).toBeOnTheScreen();
   expect(screen.queryByText(/raw OCR text/)).toBeNull();
+});
+
+test('the Share button exports the session diagnostics off-device', () => {
+  enableFlag();
+  const shareSpy = jest
+    .spyOn(Share, 'share')
+    .mockResolvedValue({ action: 'sharedAction' } as Awaited<
+      ReturnType<typeof Share.share>
+    >);
+  logRecognitionDiagnostics(DIAG);
+  render(<RecognitionDiagnosticsOverlay />);
+
+  fireEvent.press(screen.getByLabelText('Share recognition diagnostics'));
+
+  expect(shareSpy).toHaveBeenCalledTimes(1);
+  const content = shareSpy.mock.calls[0][0] as { message: string };
+  // The exported payload carries the formatted block, not a screenshot.
+  expect(content.message).toContain('[recognition] raw OCR text:');
+  expect(content.message).toContain('Billy Bones');
 });
