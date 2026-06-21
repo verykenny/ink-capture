@@ -1,0 +1,14 @@
+// Per-developer code signing template.
+//
+// Copy this to `Signing.local.xcconfig` (git-ignored) and set your Team ID:
+//   cp ios/Signing.local.xcconfig.example ios/Signing.local.xcconfig
+//
+// Find your Team ID in Xcode → Settings → Accounts → (your team), or run:
+//   security find-identity -v -p codesigning   # the 10-char ID in parentheses
+//
+// The Podfile's post_install hook appends an optional `#include?` of
+// `Signing.local.xcconfig` to the app's Pods base xcconfig, so running
+//   bundle exec pod install
+// wires it up. Because the include is optional, a clone WITHOUT this file
+// (e.g. CI) still builds — it just won't have a signing team set.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID

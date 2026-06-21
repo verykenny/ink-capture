@@ -30,6 +30,8 @@ web-build/
 ios/Pods/
 ios/build/
 ios/.xcode.env.local
+# Per-developer code signing (Team ID) — see ios/Signing.local.xcconfig.example
+ios/Signing.local.xcconfig
 *.pbxuser
 !default.pbxuser
 *.mode1v3
