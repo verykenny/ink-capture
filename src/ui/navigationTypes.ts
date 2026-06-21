@@ -14,6 +14,9 @@ import type { Card, RecognitionCandidate } from '@domain';
 
 export type RootStackParamList = {
   Collection: undefined;
+  // Collection completion + search-free overview, reached from the Collection
+  // header's "Stats" button. Reads the store + catalog; carries no params.
+  Stats: undefined;
   Scan: undefined;
   // Edit or remove one saved stack, reached by tapping a Collection row. Carries
   // the entry's id; the screen reads the live entry from the collection store.
