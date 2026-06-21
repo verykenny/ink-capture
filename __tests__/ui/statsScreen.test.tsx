@@ -121,3 +121,14 @@ test('shows a minimal message while the catalog is loading, then resolves', asyn
   expect(screen.getByText('Loading stats…')).toBeOnTheScreen();
   await db.close();
 });
+
+test('shows a one-line error message when the catalog read fails', async () => {
+  // A rejected catalog read resolves to the error branch, never a hung spinner.
+  const { db, services } = await buildServices({
+    getAllCards: () => Promise.reject(new Error('boom')),
+  });
+  renderScreen(services);
+  expect(await screen.findByText('Couldn’t load stats.')).toBeOnTheScreen();
+  expect(screen.queryByText('Loading stats…')).toBeNull();
+  await db.close();
+});

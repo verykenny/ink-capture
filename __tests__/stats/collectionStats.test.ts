@@ -121,6 +121,30 @@ describe('computeCollectionStats — per-set completion', () => {
     });
   });
 
+  test('an Enchanted printing is a distinct same-set row; owning the base does not mark it owned', () => {
+    // CARD_ELSA (TFC-042) and CARD_ELSA_ENCHANTED (TFC-204) are distinct rows in
+    // the SAME set — the ratified "completion spans Enchanted/Special" rule at
+    // set granularity. setSize counts both; owning only the base = 1 distinct.
+    const catalog = [
+      CARD_ELSA,
+      CARD_ELSA_ENCHANTED,
+      CARD_MICKEY,
+      CARD_STITCH_ROCK_STAR,
+    ];
+    expect(
+      setStat(computeCollectionStats([own(CARD_ELSA)], catalog), 'TFC'),
+    ).toMatchObject({ ownedDistinct: 1, setSize: 3 });
+    expect(
+      setStat(
+        computeCollectionStats(
+          [own(CARD_ELSA), own(CARD_ELSA_ENCHANTED)],
+          catalog,
+        ),
+        'TFC',
+      ),
+    ).toMatchObject({ ownedDistinct: 2, setSize: 3 });
+  });
+
   test('perSet is sorted by setCode regardless of catalog/entry order', () => {
     const stats = computeCollectionStats(
       [],
