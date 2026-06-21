@@ -40,6 +40,7 @@ import {
 } from 'react-native-vision-camera';
 import { unlink } from '@dr.pogodin/react-native-fs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { decideRecognition } from '@domain';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
 
@@ -152,16 +153,25 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
       const result = await recognizer.recognize({
         uri: `file://${photo.path}`,
       });
-      // Confirm now takes a chosen card, so wrap the recognizer's top candidate.
-      // D2's routing (decideRecognition: confident vs ambiguous vs none) lands in
-      // a later commit; for now the existing behaviour is preserved for a present
-      // candidate (an empty read simply doesn't navigate until routing arrives).
-      const top = result.candidates[0];
-      if (top) {
-        navigation.navigate('Confirm', {
-          card: top.card,
-          confidence: top.confidence,
-        });
+      // Gate the read through the D2 routing policy so a low-confidence or
+      // ambiguous scan never silently asserts the wrong #1: confident → confirm
+      // it directly; ambiguous → a top-N manual pick (seeded with the candidates,
+      // so the right same-number card — the Boun case — is on offer); none → an
+      // empty manual search.
+      const decision = decideRecognition(result);
+      switch (decision.kind) {
+        case 'confident':
+          navigation.navigate('Confirm', {
+            card: decision.candidate.card,
+            confidence: decision.candidate.confidence,
+          });
+          break;
+        case 'ambiguous':
+          navigation.navigate('CardSearch', { seed: decision.candidates });
+          break;
+        case 'none':
+          navigation.navigate('CardSearch', {});
+          break;
       }
     } finally {
       if (path !== undefined) {

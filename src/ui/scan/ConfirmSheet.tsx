@@ -9,7 +9,8 @@
  * CONDITIONS); the finish defaults to the card's first available finish,
  * condition to 'NM', quantity to 1. "Add to collection" builds a
  * NewCollectionEntry and saves through the store (→ repository merge-on-insert),
- * then pops back to the refreshed list.
+ * then pops back to the refreshed list. A "Wrong card? Search manually" escape
+ * routes to CardSearch when even a confident read picked the wrong card.
  *
  * Low/ambiguous/no-match reads never reach here asserting a wrong #1 — ScanScreen
  * routes them to the manual pick instead (the D2 decideRecognition policy).
@@ -71,6 +72,14 @@ export function ConfirmSheet({ route, navigation }: Props): React.JSX.Element {
           {Math.round(confidence * 100)}% match
         </Text>
       ) : null}
+
+      <TouchableOpacity
+        style={styles.searchLink}
+        onPress={() => navigation.navigate('CardSearch', {})}
+        accessibilityRole="button"
+      >
+        <Text style={styles.searchLinkText}>Wrong card? Search manually</Text>
+      </TouchableOpacity>
 
       <Text style={styles.label}>Finish</Text>
       <OptionSelector
@@ -143,6 +152,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.5,
     marginTop: 4,
+  },
+  searchLink: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  searchLinkText: {
+    fontSize: 14,
+    color: '#3b5bfd',
+    fontWeight: '600',
   },
   label: {
     fontSize: 13,

@@ -102,6 +102,16 @@ test('omits the confidence hint when no confidence is supplied (manual pick / se
   await db.close();
 });
 
+test('"Wrong card? Search manually" routes to CardSearch', async () => {
+  const { db, services } = await buildServices();
+  renderSheet(services, { card: CARD_ELSA, confidence: 1 });
+
+  fireEvent.press(screen.getByText('Wrong card? Search manually'));
+  expect(navigation.navigate).toHaveBeenCalledWith('CardSearch', {});
+  expect(navigation.popToTop).not.toHaveBeenCalled();
+  await db.close();
+});
+
 test('Add saves the selected finish/condition/quantity and pops to the list', async () => {
   const { db, services, store } = await buildServices();
   renderSheet(services, { card: CARD_ELSA, confidence: 1 });

@@ -25,7 +25,7 @@ import { AppServicesProvider } from '@state';
 import type { AppServices } from '@state';
 import type { CardRecognizer } from '@services';
 import type { RecognitionResult } from '@domain';
-import { CARD_ELSA } from '../fixtures/cards';
+import { CARD_BILLY_BONES, CARD_BOUN, CARD_ELSA } from '../fixtures/cards';
 
 // The captured still's on-disk path the mock camera reports; ScanScreen prefixes
 // `file://` for the recognizer and unlinks the bare path for cleanup.
@@ -110,6 +110,46 @@ test('Capture takes a still, recognizes it, navigates to Confirm, and deletes th
   expect(recognize).toHaveBeenCalledWith({ uri: `file://${CAPTURE_PATH}` });
   // ...and the temp still is unlinked afterwards (bare path, no file://).
   await waitFor(() => expect(unlink).toHaveBeenCalledWith(CAPTURE_PATH));
+});
+
+test('an ambiguous read (the Boun #104 case) routes to CardSearch seeded with the top-N', async () => {
+  // Two same-number cards, top at a weak ~0.26 — below the floor: never assert
+  // the wrong #1, route to a manual pick with both candidates on offer.
+  const ambiguous: RecognitionResult = {
+    candidates: [
+      { card: CARD_BILLY_BONES, confidence: 0.26 },
+      { card: CARD_BOUN, confidence: 0.24 },
+    ],
+    source: { collectorNumber: '104', name: 'boun' },
+  };
+  renderScreen(jest.fn(async () => ambiguous));
+
+  fireEvent.press(screen.getByText('Capture'));
+
+  await waitFor(() =>
+    expect(navigation.navigate).toHaveBeenCalledWith('CardSearch', {
+      seed: ambiguous.candidates,
+    }),
+  );
+  expect(navigation.navigate).not.toHaveBeenCalledWith(
+    'Confirm',
+    expect.anything(),
+  );
+  await waitFor(() => expect(unlink).toHaveBeenCalledWith(CAPTURE_PATH));
+});
+
+test('an empty read routes to an empty CardSearch (manual search), not Confirm', async () => {
+  renderScreen(jest.fn(async () => ({ candidates: [] })));
+
+  fireEvent.press(screen.getByText('Capture'));
+
+  await waitFor(() =>
+    expect(navigation.navigate).toHaveBeenCalledWith('CardSearch', {}),
+  );
+  expect(navigation.navigate).not.toHaveBeenCalledWith(
+    'Confirm',
+    expect.anything(),
+  );
 });
 
 test('ignores a second Capture while the first is still in flight', async () => {
