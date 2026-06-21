@@ -22,7 +22,7 @@ import type {
   RecognitionResult,
   RecognitionSource,
 } from '@domain';
-import type { OcrResult } from './OcrEngine';
+import type { OcrResult, OcrTextLine } from './OcrEngine';
 import { shouldLogRecognitionDiagnostics } from './visionConfig';
 
 /** The three signals a single recognition pass exposes for tuning. */
@@ -45,6 +45,42 @@ const candidateLine = (
   }) ${pct}%`;
 };
 
+/**
+ * Flatten blocks → lines exactly as `parseCardText` sees them (a block with no
+ * lines contributes its own text), so the dumped geometry is the parser's input.
+ */
+const ocrLines = (ocr: OcrResult): OcrTextLine[] =>
+  ocr.blocks.flatMap(block => {
+    if (block.lines.length > 0) {
+      return block.lines;
+    }
+    if (!block.text) {
+      return [];
+    }
+    return [
+      block.frame
+        ? { text: block.text, frame: block.frame }
+        : { text: block.text },
+    ];
+  });
+
+/** One OCR line as a compact `{t,x,y,w,h}` record — the geometry the parser ranks on. */
+const lineGeometry = (
+  line: OcrTextLine,
+): { t: string; x?: number; y?: number; w?: number; h?: number } => {
+  const frame = line.frame;
+  if (!frame) {
+    return { t: line.text };
+  }
+  return {
+    t: line.text,
+    x: Math.round(frame.x),
+    y: Math.round(frame.y),
+    w: Math.round(frame.width),
+    h: Math.round(frame.height),
+  };
+};
+
 /** Render one recognition pass as a human-readable diagnostics block. Pure. */
 export const formatRecognitionDiagnostics = (
   diagnostics: RecognitionDiagnostics,
@@ -54,10 +90,14 @@ export const formatRecognitionDiagnostics = (
     result.candidates.length > 0
       ? result.candidates.map(candidateLine)
       : ['  (none)'];
+  // Per-line frames (top-left x,y + w,h) as JSON — the version selection anchors on
+  // these, so dumping them makes a misparse diagnosable without a screenshot.
+  const lines = JSON.stringify(ocrLines(ocr).map(lineGeometry));
   return [
     '[recognition] raw OCR text:',
     ocr.text.length > 0 ? ocr.text : '(empty)',
     `[recognition] parsed source: ${JSON.stringify(source)}`,
+    `[recognition] OCR lines (JSON): ${lines}`,
     '[recognition] ranked candidates:',
     ...candidates,
   ].join('\n');

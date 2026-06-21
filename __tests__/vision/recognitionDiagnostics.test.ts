@@ -70,6 +70,40 @@ describe('formatRecognitionDiagnostics', () => {
     expect(text).toContain('(empty)');
     expect(text).toContain('(none)');
   });
+
+  test('dumps per-line frames (the geometry the version selection ranks on) as JSON', () => {
+    const text = formatRecognitionDiagnostics({
+      ocr: {
+        text: 'CARD SOLDIERS\nRoyal Troops',
+        blocks: [
+          {
+            text: 'CARD SOLDIERS\nRoyal Troops',
+            lines: [
+              {
+                text: 'CARD SOLDIERS',
+                frame: { x: 120, y: 500, width: 760, height: 150 },
+              },
+              {
+                text: 'Royal Troops',
+                frame: { x: 120, y: 650, width: 520, height: 70 },
+              },
+            ],
+          },
+        ],
+      },
+      source: { collectorNumber: '129', name: 'CARD SOLDIERS Royal Troops' },
+      result: { candidates: [] },
+    });
+
+    expect(text).toContain('[recognition] OCR lines (JSON):');
+    // Each line carries its text + rounded top-left x/y and w/h.
+    expect(text).toContain(
+      '{"t":"CARD SOLDIERS","x":120,"y":500,"w":760,"h":150}',
+    );
+    expect(text).toContain(
+      '{"t":"Royal Troops","x":120,"y":650,"w":520,"h":70}',
+    );
+  });
 });
 
 describe('logRecognitionDiagnostics', () => {
