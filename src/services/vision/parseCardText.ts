@@ -54,10 +54,13 @@ const MIN_NAME_LETTERS = 3;
  */
 const MAX_TITLE_WORDS = 6;
 
-/** A subtitle must be at least this tall relative to the name line… */
-const SUBTITLE_MIN_RATIO = 0.5;
-/** …and sit no further than this multiple of the name's height below it. */
-const SUBTITLE_MAX_GAP_RATIO = 1.5;
+/**
+ * When the card prints no type line to anchor against, the version is accepted
+ * only if it sits within this many name-cap-heights of the name (else the read is
+ * version-less, e.g. a sparse capture). With a type line present this bound is
+ * unused — the type line is the anchor.
+ */
+const NO_TYPE_VERSION_GAP = 4;
 
 /** How many lines to treat as the title when the engine reports no frames. */
 const FRAMELESS_TITLE_LINES = 2;
@@ -115,11 +118,44 @@ const isAllCaps = (line: OcrTextLine): boolean =>
   letterCount(line.text) >= MIN_NAME_LETTERS &&
   line.text === line.text.toUpperCase();
 
-/** The tallest line by frame height (best-effort: missing frames count as 0). */
-const tallestByHeight = (lines: readonly OcrTextLine[]): OcrTextLine =>
-  lines.reduce((tallest, line) =>
-    (line.frame?.height ?? 0) > (tallest.frame?.height ?? 0) ? line : tallest,
-  );
+/**
+ * Real captures often come out rotated ~90° (the phone is portrait but the card's
+ * text runs sideways in the sensor buffer), so a line's frame is `w≈capHeight,
+ * h≈textLength`. ML Kit reports frames in image space, so we cannot assume the
+ * card's top-to-bottom axis is Y. Detect the rotation from the lines themselves: a
+ * line of text is always longer than tall, so if most framed lines are taller than
+ * wide the capture is rotated and the card's stacking axis is X, not Y.
+ */
+const isRotatedCapture = (lines: readonly OcrTextLine[]): boolean => {
+  let rotated = 0;
+  let upright = 0;
+  for (const line of lines) {
+    const w = line.frame?.width ?? 0;
+    const h = line.frame?.height ?? 0;
+    if (w === 0 || h === 0) {
+      continue;
+    }
+    if (h > w) {
+      rotated += 1;
+    } else {
+      upright += 1;
+    }
+  }
+  return rotated > upright;
+};
+
+/** Font-size proxy (cap height), rotation-invariant: the across-the-text dimension. */
+const capHeightOf = (line: OcrTextLine, rotated: boolean): number =>
+  rotated ? line.frame?.width ?? 0 : line.frame?.height ?? 0;
+
+/** A line's position along the card's name→collector stacking axis (X if rotated). */
+const stackPosOf = (line: OcrTextLine, rotated: boolean): number => {
+  const frame = line.frame;
+  if (!frame) {
+    return 0;
+  }
+  return rotated ? frame.x + frame.width / 2 : frame.y + frame.height / 2;
+};
 
 /** Flatten blocks to lines, falling back to a block's own text when it has none. */
 const flattenLines = (ocr: OcrResult): OcrTextLine[] =>
@@ -160,30 +196,28 @@ const toNameCandidate = (line: OcrTextLine): OcrTextLine => {
 };
 
 /**
- * Pick the title lines. When every candidate is framed, the name is the tallest
- * ALL-CAPS line — the card name is printed in caps, and case survives the frame-
- * height noise that lets a title-case type line or a split body fragment out-
- * measure the title. (Falls back to the tallest line overall when nothing is all-
- * caps, e.g. a fully lowercased OCR.) Requiring all-framed means a mixed read
+ * Pick the title lines — rotation-aware, anchored to the type line.
+ *
+ * The name is the ALL-CAPS line with the largest cap height (case survives frame
+ * noise far better than size; falls back to the largest line when nothing is all-
+ * caps, e.g. a fully lowercased OCR). Requiring all-framed means a mixed read
  * (some lines without frames) falls back to reading order.
  *
- * The Lorcana layout pins the **version** precisely: NAME → version → `Storyborn •
- * …` / `Action` / … **type line** → cost/ability/flavor → artist credit →
- * collector. So whenever a type line is found below the name, the version is
- * exactly the line(s) BETWEEN the name and that type line — taken by position, NOT
- * by height. The earlier height gate (`height ≥ ½·name`) was the live-capture bug:
- * the version prints smaller than the big all-caps name, failed the gate, and the
- * parser fell through to the artist credit / ability text below it ("DAVID XANATOS
- * chosen character.", "BOUN Alice Pisoni"). Anchoring to the type line instead:
- *  - **character** cards yield `NAME version` (the version is the line just above
- *    the `Storyborn • …` line, whatever its size);
- *  - **Action / Item / Location / Song** cards yield the bare `NAME` — their type
- *    line sits directly under the name with nothing between, so there is no version.
- * Type-line- and artist-credit-shaped lines (a leading glyph or a co-artist slash)
- * are still excluded, in case OCR drops one into the gap.
- *
- * When NO type line is found (a sparse or garbled read), fall back to the older
- * heuristic: the nearest comparably-sized line just beneath the name by height/gap.
+ * The Lorcana layout pins the **version**: NAME → version → `Storyborn • …` /
+ * `Action` / … **type line** → cost/ability/flavor → artist credit → collector. So
+ * the version is the line nearest the name (along the stacking axis) that is NOT
+ * type-line- or artist-credit-shaped — *provided it sits closer to the name than
+ * the type line does*. That single comparison is the whole trick:
+ *  - **character** cards put the version between the name and the type line, so it
+ *    wins the nearest slot whatever its printed size;
+ *  - **Action / Item / Location / Song** cards put the type line directly under the
+ *    name, so any ability/flavor fragment is *farther* than the type line → no
+ *    version → the bare NAME.
+ * Positions use a rotation-invariant stacking axis (X on a sideways capture), which
+ * is why a 90°-rotated still — the live failure where the version read smaller than
+ * the name and lost to ability/flavor text — now resolves correctly. With no type
+ * line (a sparse read) the version must instead fall within `NO_TYPE_VERSION_GAP`
+ * name-cap-heights of the name.
  */
 const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
   const everyFramed = candidates.every(line => (line.frame?.height ?? 0) > 0);
@@ -191,52 +225,36 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
     return candidates.slice(0, FRAMELESS_TITLE_LINES);
   }
 
+  const rotated = isRotatedCapture(candidates);
+  const capHeight = (line: OcrTextLine): number => capHeightOf(line, rotated);
+  const stackPos = (line: OcrTextLine): number => stackPosOf(line, rotated);
+
   const allCaps = candidates.filter(isAllCaps);
-  const name = tallestByHeight(allCaps.length > 0 ? allCaps : candidates);
-  const nameY = name.frame?.y ?? 0;
-  const nameHeight = name.frame?.height ?? 0;
-
-  // The topmost type line below the name — the version sits strictly above it.
-  // Undefined when the card prints no type line (a sparse/garbled read).
-  const typeLineY = candidates
-    .filter(line => (line.frame?.y ?? 0) > nameY && isTypeLine(line))
-    .reduce<number | undefined>((min, line) => {
-      const y = line.frame?.y ?? 0;
-      return min === undefined || y < min ? y : min;
-    }, undefined);
-
-  if (typeLineY !== undefined) {
-    // Version = the title-like line(s) between the name and the type line, in
-    // reading order. No height gate — a small-printed version still counts.
-    const versionLines = candidates
-      .filter(
-        line => line !== name && !isTypeLine(line) && !isArtistCredit(line),
-      )
-      .filter(line => {
-        const y = line.frame?.y ?? 0;
-        return y > nameY && y < typeLineY;
-      })
-      .sort((a, b) => (a.frame?.y ?? 0) - (b.frame?.y ?? 0));
-    return [name, ...versionLines];
-  }
-
-  // Fallback (no type line): the nearest comparably-sized line beneath the name.
-  const subtitle = candidates
-    .filter(line => line !== name && !isTypeLine(line) && !isArtistCredit(line))
-    .filter(line => {
-      const y = line.frame?.y ?? 0;
-      const height = line.frame?.height ?? 0;
-      return (
-        y > nameY &&
-        y - nameY <= nameHeight * SUBTITLE_MAX_GAP_RATIO &&
-        height >= nameHeight * SUBTITLE_MIN_RATIO
-      );
-    })
-    .sort((a, b) => (a.frame?.y ?? 0) - (b.frame?.y ?? 0))[0];
-
-  return (subtitle ? [name, subtitle] : [name]).sort(
-    (a, b) => (a.frame?.y ?? 0) - (b.frame?.y ?? 0),
+  const pool = allCaps.length > 0 ? allCaps : candidates;
+  const name = pool.reduce((tallest, line) =>
+    capHeight(line) > capHeight(tallest) ? line : tallest,
   );
+  const namePos = stackPos(name);
+  const others = candidates.filter(line => line !== name);
+
+  // How far the nearest type line sits from the name — the anchor the version must
+  // beat. Undefined when the card prints no type line, in which case fall back to a
+  // fixed adjacency bound so a sparse read doesn't grab a distant fragment.
+  const typeGaps = others
+    .filter(isTypeLine)
+    .map(line => Math.abs(stackPos(line) - namePos));
+  const versionLimit =
+    typeGaps.length > 0
+      ? Math.min(...typeGaps)
+      : capHeight(name) * NO_TYPE_VERSION_GAP;
+
+  const version = others
+    .filter(line => !isTypeLine(line) && !isArtistCredit(line))
+    .map(line => ({ line, gap: Math.abs(stackPos(line) - namePos) }))
+    .filter(({ gap }) => gap < versionLimit)
+    .sort((a, b) => a.gap - b.gap)[0]?.line;
+
+  return version ? [name, version] : [name];
 };
 
 /** The joined title region, or undefined when no line carries a name signal. */

@@ -763,3 +763,134 @@ describe('parseCardText — real device captures (2026-06-21): small version rec
     expect(result).toEqual({ collectorNumber: '162', name: 'PROMISING LEAD' });
   });
 });
+
+/**
+ * Real ROTATED device captures (2026-06-21). The phone produces a sideways still,
+ * so ML Kit reports each line as `w≈capHeight, h≈textLength` and the card's
+ * top-to-bottom axis is the image X axis — exactly the geometry that made the
+ * parser grab ability/flavor text ("DAVID XANATOS chosen character.").
+ *
+ * Frames are the VERBATIM `{x,y,w,h}` from the device's `OCR lines (JSON)` dump, so
+ * the rotation is real, not reconstructed. IP-clean: real NAMES + versions + type
+ * lines + collector numbers (facts); every ability/flavor line and artist credit is
+ * replaced with synthesized placeholder of the same word-count class (so the
+ * title-vs-prose filtering and the artist-glyph exclusion behave identically) —
+ * never the copyrighted text.
+ */
+describe('parseCardText — real rotated captures resolve NAME + version (sideways scan)', () => {
+  test('THOMAS #1 (rotated) → "THOMAS Wide-Eyed Recruit"', () => {
+    const result = parseCardText(
+      ocr([
+        line('THOMAS', f(2285, 1618, 98, 388)),
+        line('Wide-Eyed Recruit', f(2400, 1576, 69, 425)),
+        line('O', f(2218, 454, 235, 355)), // lore glyph
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2862, 620, 104, 1372),
+        ),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing',
+          f(2963, 853, 88, 992),
+        ),
+        line('>Artist Name', f(3272, 1677, 40, 342)),
+        line('1/204EN.11', f(3332, 1763, 43, 259)),
+        line('Storyborn • Ally', f(2503, 1014, 70, 391)),
+        line('Disney Lorcana', f(3248, 388, 46, 214)),
+        line('ODisney', f(3286, 386, 35, 121)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '1',
+      name: 'THOMAS Wide-Eyed Recruit',
+    });
+  });
+
+  test('DAVID XANATOS #184 (rotated) → "DAVID XANATOS Steel Clan Leader" (ability fragment dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('DAVID XANATOS', f(2359, 1218, 98, 722)),
+        line('Steel Clan Leader', f(2470, 1535, 61, 411)),
+        line('Storyborn • Villain', f(2587, 939, 62, 455)),
+        line('B2', f(2351, 372, 189, 387)), // strength glyph
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2702, 593, 101, 1387),
+        ),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2802, 565, 78, 1384),
+        ),
+        line('lorem ipsum', f(2879, 1512, 64, 438)), // the fragment the old parser grabbed
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(3032, 610, 85, 1339),
+        ),
+        line('lorem ipsum', f(3116, 1552, 76, 406)),
+        line('lorem ipsum', f(3195, 1561, 69, 391)),
+        line('Artist One / Artist Two', f(3341, 1407, 56, 584)),
+        line('184/204 EN.10', f(3398, 1666, 61, 350)),
+        line('Disney Lorcana', f(3361, 342, 42, 211)),
+        line('ODisney', f(3398, 340, 38, 122)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '184',
+      name: 'DAVID XANATOS Steel Clan Leader',
+    });
+  });
+
+  test('GIZMODUCK #105 (rotated) → "GIZMODUCK Suited Up" (Resist fragment dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('GIZMODUCK', f(2305, 1412, 105, 530)),
+        line('Suited Up', f(2418, 1719, 73, 227)),
+        line('Storyborn • Inventor', f(2536, 917, 69, 502)),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2734, 738, 96, 1208),
+        ),
+        line('lorem ipsum dolor', f(2826, 1569, 93, 382)), // the fragment the old parser grabbed
+        line('lorem ipsum dolor sit', f(2942, 761, 104, 1189)),
+        line('lorem ipsum dolor sit', f(3048, 899, 91, 1054)),
+        line('>Artist Name', f(3275, 1709, 63, 276)),
+        line('105/204 · EN.7', f(3339, 1691, 58, 315)),
+        line('Disney Lorcana', f(3297, 342, 48, 227)),
+        line('ODisney', f(3339, 340, 39, 134)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '105',
+      name: 'GIZMODUCK Suited Up',
+    });
+  });
+
+  test('PROMISING LEAD #162 (rotated, Action) → "PROMISING LEAD" — no version', () => {
+    const result = parseCardText(
+      ocr([
+        line('PROMISING LEAD', f(2223, 834, 94, 746)),
+        line('Action', f(2406, 1134, 53, 155)),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2554, 669, 67, 1281),
+        ),
+        line(
+          'lorem ipsum dolor sit amet consectetur elit',
+          f(2623, 1034, 73, 954),
+        ),
+        line('lorem ipsum dolor', f(2629, 534, 53, 409)),
+        line('lorem ipsum dolor sit', f(2698, 1396, 65, 558)),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit sed',
+          f(2843, 488, 75, 1464),
+        ),
+        line('lorem ipsum dolor sit amet', f(2914, 1120, 76, 870)),
+        line('lorem ipsum', f(2991, 1665, 76, 285)),
+        line('>Greez', f(3146, 1852, 43, 152)),
+        line('162/204 · EN .10', f(3203, 1699, 49, 303)),
+        line('Disney Lorcana', f(3159, 395, 34, 208)),
+        line('ODisney', f(3196, 394, 33, 122)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '162', name: 'PROMISING LEAD' });
+  });
+});
