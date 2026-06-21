@@ -17,6 +17,7 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
+import { EditEntryScreen } from '@ui/collection/EditEntryScreen';
 import { ScanScreen } from '@ui/scan/ScanScreen';
 import { CardSearchScreen } from '@ui/scan/CardSearchScreen';
 import { ConfirmSheet } from '@ui/scan/ConfirmSheet';
@@ -33,6 +34,11 @@ export function RootNavigator(): React.JSX.Element {
         name="Collection"
         component={CollectionListScreen}
         options={{ title: 'My Collection' }}
+      />
+      <Stack.Screen
+        name="EditEntry"
+        component={EditEntryScreen}
+        options={{ title: 'Edit Card' }}
       />
       <Stack.Screen
         name="Scan"

@@ -15,6 +15,9 @@ import type { Card, RecognitionCandidate } from '@domain';
 export type RootStackParamList = {
   Collection: undefined;
   Scan: undefined;
+  // Edit or remove one saved stack, reached by tapping a Collection row. Carries
+  // the entry's id; the screen reads the live entry from the collection store.
+  EditEntry: { entryId: string };
   // The unified manual-pick / search screen. An ambiguous scan seeds it with the
   // scan's top-N candidates; a manual entry searches by name. `reason: 'no-match'`
   // marks a scan that read nothing, so the empty box explains the arrival rather

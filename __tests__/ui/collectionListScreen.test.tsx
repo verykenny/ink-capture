@@ -109,3 +109,17 @@ test('the Scan CTA navigates to the Scan route', async () => {
   expect(navigation.navigate).toHaveBeenCalledWith('Scan');
   await db.close();
 });
+
+test('tapping a row navigates to EditEntry with that entry’s id', async () => {
+  const { db, services } = await buildServices(true);
+  renderScreen(services);
+  // The seeded row resolves its name; tapping it opens the edit screen.
+  fireEvent.press(await screen.findByText('Elsa — Snow Queen'));
+  expect(navigation.navigate).toHaveBeenCalledWith('EditEntry', {
+    entryId: expect.any(String),
+  });
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+  await db.close();
+});
