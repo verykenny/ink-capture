@@ -20,6 +20,7 @@ import type {
   CardRecognizer,
   CatalogService,
   CollectionRepository,
+  CustomCardRepository,
   PersistenceService,
 } from '@services';
 import type { CollectionStore } from './collectionStore';
@@ -29,6 +30,8 @@ export interface AppServices {
   persistence: PersistenceService;
   repo: CollectionRepository;
   catalog: CatalogService;
+  /** Off-catalog manual cards (E1) — resolved into the collection's card lookup. */
+  customCards: CustomCardRepository;
   /** Set during `initialize()` from the synced catalog — D1 swaps this one line. */
   recognizer: CardRecognizer;
   collectionStore: CollectionStore;

@@ -20,6 +20,7 @@ import {
   createCardMatcher,
   createCatalogService,
   createCollectionRepository,
+  createCustomCardRepository,
   createFetchJsonClient,
   createMlKitOcrEngine,
   createOcrCardRecognizer,
@@ -57,6 +58,7 @@ export const createAppServices = (
   const db = openDatabase();
   const persistence = createPersistenceService(db);
   const repo = createCollectionRepository(db);
+  const customCards = createCustomCardRepository(db);
   const catalog = createCatalogService({ db, http: createFetchJsonClient() });
   const collectionStore = createCollectionStore(repo);
 
@@ -64,6 +66,7 @@ export const createAppServices = (
     persistence,
     repo,
     catalog,
+    customCards,
     recognizer: buildRecognizer(catalog),
     collectionStore,
     ...overrides,
