@@ -67,6 +67,27 @@ const isTitleLike = (line: OcrTextLine): boolean =>
   wordCount(line.text) <= MAX_TITLE_WORDS;
 
 /**
+ * The Lorcana type line — `Storyborn • Ally`, `Action`, `Item`, etc. It sits just
+ * below the version, so it both (a) is never a subtitle itself and (b) anchors a
+ * ceiling: a real version is always ABOVE it. Anchored at the line start so a
+ * mid-line "• action" in prose does not trip it.
+ */
+const TYPE_LINE =
+  /^(storyborn|dreamborn|floodborn|action|item|location|song)\b/i;
+
+/** A leading artist glyph the OCR emits before the illustrator credit (`>`, `»`, `·`, `•`, `→`). */
+const ARTIST_GLYPH = /^\s*[>»·•→]/;
+/** A co-artist credit joins two names with a slash ("Jane Doe / John Roe"). */
+const CO_ARTIST_SLASH = /\w\s*\/\s*\w/;
+
+/** A type-line-shaped line — excluded from subtitle contention and used as the ceiling. */
+const isTypeLine = (line: OcrTextLine): boolean => TYPE_LINE.test(line.text);
+
+/** An artist-credit-shaped line: a leading artist glyph or a co-artist slash. */
+const isArtistCredit = (line: OcrTextLine): boolean =>
+  ARTIST_GLYPH.test(line.text) || CO_ARTIST_SLASH.test(line.text);
+
+/**
  * The card name is printed in ALL-CAPS; the version/subtitle, the type line, and
  * flavor/ability prose are not. A line is "all-caps" when it has real letters and
  * none of them is lowercase. (An ability KEYWORD is caps, but its line carries the
@@ -130,6 +151,17 @@ const toNameCandidate = (line: OcrTextLine): OcrTextLine => {
  * line just beneath the name — found by height, not a band, because on real cards
  * body/flavor text is tall enough to slip past a ratio. Requiring all-framed means
  * a mixed read (some lines without frames) falls back to reading order.
+ *
+ * The version is the card's true subtitle, but on live captures the height/gap
+ * gates also admit the ARTIST CREDIT or an ABILITY fragment, polluting the
+ * `name + version` match key. The Lorcana layout pins the version: NAME → version
+ * → `Storyborn • …` type line → ability/flavor → artist credit. So three
+ * predicates layer on top of height/gap: (1) a ceiling at the first type line
+ * below the name — the version always sits strictly above it; (2) type-line-shaped
+ * lines are never the subtitle; (3) artist-credit-shaped lines (a leading glyph or
+ * a co-artist slash) are never the subtitle. On the clean fixtures these are inert
+ * (the gap gate already excludes the same lines); they only bite when a credit or
+ * fragment lands inside the gap window.
  */
 const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
   const everyFramed = candidates.every(line => (line.frame?.height ?? 0) > 0);
@@ -142,13 +174,24 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
   const nameY = name.frame?.y ?? 0;
   const nameHeight = name.frame?.height ?? 0;
 
+  // The topmost type line below the name — the version sits strictly above it.
+  // Undefined when the card prints no type line (e.g. a frameless or sparse read),
+  // in which case the ceiling is vacuous.
+  const typeLineY = candidates
+    .filter(line => (line.frame?.y ?? 0) > nameY && isTypeLine(line))
+    .reduce<number | undefined>((min, line) => {
+      const y = line.frame?.y ?? 0;
+      return min === undefined || y < min ? y : min;
+    }, undefined);
+
   const subtitle = candidates
-    .filter(line => line !== name)
+    .filter(line => line !== name && !isTypeLine(line) && !isArtistCredit(line))
     .filter(line => {
       const y = line.frame?.y ?? 0;
       const height = line.frame?.height ?? 0;
       return (
         y > nameY &&
+        (typeLineY === undefined || y < typeLineY) &&
         y - nameY <= nameHeight * SUBTITLE_MAX_GAP_RATIO &&
         height >= nameHeight * SUBTITLE_MIN_RATIO
       );
