@@ -4,9 +4,11 @@
  * it decides whether the scan is confident enough to assert #1, or must route the
  * user to a top-N / manual pick.
  *
- * Rule: confident iff top.confidence >= confidentMin AND it beats #2 by >=
+ * Rule: confident iff top.confidence >= the floor AND it beats #2 by >=
  * ambiguityMargin; else ambiguous (candidates capped at topN, best-first); empty
- * candidates -> none. Defaults: confidentMin 0.70, ambiguityMargin 0.15, topN 5.
+ * candidates -> none. The floor is confidentMin, relaxed to corroboratedMin when
+ * the scanned collector number corroborates #1 (D3). Defaults: confidentMin 0.70,
+ * corroboratedMin 0.55, ambiguityMargin 0.15, topN 10.
  *
  * IP guardrail: hand-authored fixtures + synthetic minimal cards only.
  *
@@ -205,6 +207,74 @@ describe('decideRecognition', () => {
     expect(decideRecognition(resultOf(only), { confidentMin: 0.5 })).toEqual({
       kind: 'confident',
       candidate: only,
+    });
+  });
+
+  /**
+   * D3 collector-number corroboration. When the scan read a collector number and
+   * #1 prints that exact number, the number is independent evidence the name
+   * similarity isn't — so #1 only has to clear a RELAXED floor (corroboratedMin,
+   * default 0.55) instead of confidentMin. The margin gate is deliberately NOT
+   * relaxed: it still runs on the raw similarities, so two same-number cards (the
+   * Boun/Billy decoy) stay ambiguous. This lifts a near-clean read above the floor
+   * without ever asserting a wrong same-number card.
+   */
+  describe('collector-number corroboration relaxes the floor, not the margin', () => {
+    /** A lone #77 candidate whose number the scan corroborated. */
+    const corroboratedLone = (confidence: number): RecognitionResult => ({
+      candidates: [candidate(confidence, '77')], // cardOf('77').collectorNumber === '77'
+      source: { collectorNumber: '77' },
+    });
+
+    test('a corroborated lone hit at 0.60 clears the relaxed floor → confident', () => {
+      const decision = decideRecognition(corroboratedLone(0.6));
+      expect(decision.kind).toBe('confident');
+    });
+
+    test('a corroborated lone hit at 0.50 is still below the relaxed floor → ambiguous', () => {
+      expect(decideRecognition(corroboratedLone(0.5)).kind).toBe('ambiguous');
+    });
+
+    test('a corroborated lone hit exactly at corroboratedMin (0.55) → confident (inclusive)', () => {
+      expect(decideRecognition(corroboratedLone(0.55)).kind).toBe('confident');
+    });
+
+    test('a corroborated #1 that clears the floor but beats #2 by < the margin → ambiguous', () => {
+      // Both clear the relaxed floor; the unchanged margin gate (0.62 - 0.55 =
+      // 0.07 < 0.15) keeps it ambiguous — exactly the same-number-decoy safety.
+      const decision = decideRecognition({
+        candidates: [candidate(0.62, '104'), candidate(0.55, '104b')],
+        source: { collectorNumber: '104' },
+      });
+      expect(decision.kind).toBe('ambiguous');
+      if (decision.kind === 'ambiguous') {
+        expect(decision.candidates).toHaveLength(2);
+      }
+    });
+
+    test('a number MISMATCH does not relax the floor (the standard 0.70 applies) → ambiguous', () => {
+      // Scan read #104 but #1 prints #200 — not corroborated, so 0.60 < 0.70.
+      const decision = decideRecognition({
+        candidates: [candidate(0.6, '200')],
+        source: { collectorNumber: '104' },
+      });
+      expect(decision.kind).toBe('ambiguous');
+    });
+
+    test('an absent source leaves the decision unchanged — the same 0.60 read flips with corroboration', () => {
+      // No source → no corroboration → standard floor → ambiguous at 0.60...
+      expect(decideRecognition(resultOf(candidate(0.6, '77'))).kind).toBe(
+        'ambiguous',
+      );
+      // ...and the only difference that flips it confident is the corroborating number.
+      expect(decideRecognition(corroboratedLone(0.6)).kind).toBe('confident');
+    });
+
+    test('a custom corroboratedMin flows through (a raised 0.65 keeps a corroborated 0.60 ambiguous)', () => {
+      expect(
+        decideRecognition(corroboratedLone(0.6), { corroboratedMin: 0.65 })
+          .kind,
+      ).toBe('ambiguous');
     });
   });
 });

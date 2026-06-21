@@ -14,6 +14,7 @@ import Config from 'react-native-config';
 import {
   formatRecognitionDiagnostics,
   getLastRecognitionDiagnostics,
+  getRecognitionDiagnosticsHistory,
   logRecognitionDiagnostics,
   subscribeRecognitionDiagnostics,
 } from '@services';
@@ -68,6 +69,40 @@ describe('formatRecognitionDiagnostics', () => {
 
     expect(text).toContain('(empty)');
     expect(text).toContain('(none)');
+  });
+
+  test('dumps per-line frames (the geometry the version selection ranks on) as JSON', () => {
+    const text = formatRecognitionDiagnostics({
+      ocr: {
+        text: 'CARD SOLDIERS\nRoyal Troops',
+        blocks: [
+          {
+            text: 'CARD SOLDIERS\nRoyal Troops',
+            lines: [
+              {
+                text: 'CARD SOLDIERS',
+                frame: { x: 120, y: 500, width: 760, height: 150 },
+              },
+              {
+                text: 'Royal Troops',
+                frame: { x: 120, y: 650, width: 520, height: 70 },
+              },
+            ],
+          },
+        ],
+      },
+      source: { collectorNumber: '129', name: 'CARD SOLDIERS Royal Troops' },
+      result: { candidates: [] },
+    });
+
+    expect(text).toContain('[recognition] OCR lines (JSON):');
+    // Each line carries its text + rounded top-left x/y and w/h.
+    expect(text).toContain(
+      '{"t":"CARD SOLDIERS","x":120,"y":500,"w":760,"h":150}',
+    );
+    expect(text).toContain(
+      '{"t":"Royal Troops","x":120,"y":650,"w":520,"h":70}',
+    );
   });
 });
 
@@ -144,5 +179,29 @@ describe('recognition diagnostics sink (for the on-screen overlay)', () => {
     (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
     logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('accumulates a session history (newest last) for one-tap export', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
+    const before = getRecognitionDiagnosticsHistory();
+
+    const first = { ocr: OCR, source: SOURCE, result: RESULT };
+    const second = {
+      ocr: { text: 'SECOND CARD\n7/204', blocks: [] },
+      source: { collectorNumber: '7', name: 'second card' },
+      result: { candidates: [] } as RecognitionResult,
+    };
+    logRecognitionDiagnostics(first);
+    logRecognitionDiagnostics(second);
+
+    const history = getRecognitionDiagnosticsHistory();
+    // Both captures are present, second after first (export order), and the
+    // history grew — so a session of reads can be shared in one go.
+    expect(history).toContain(formatRecognitionDiagnostics(first));
+    expect(history).toContain(formatRecognitionDiagnostics(second));
+    expect(history.indexOf('SECOND CARD')).toBeGreaterThan(
+      history.indexOf(SOURCE.name ?? ''),
+    );
+    expect(history.length).toBeGreaterThan(before.length);
   });
 });

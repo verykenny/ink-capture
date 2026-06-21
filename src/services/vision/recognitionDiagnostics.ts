@@ -22,7 +22,7 @@ import type {
   RecognitionResult,
   RecognitionSource,
 } from '@domain';
-import type { OcrResult } from './OcrEngine';
+import type { OcrResult, OcrTextLine } from './OcrEngine';
 import { shouldLogRecognitionDiagnostics } from './visionConfig';
 
 /** The three signals a single recognition pass exposes for tuning. */
@@ -45,6 +45,42 @@ const candidateLine = (
   }) ${pct}%`;
 };
 
+/**
+ * Flatten blocks → lines exactly as `parseCardText` sees them (a block with no
+ * lines contributes its own text), so the dumped geometry is the parser's input.
+ */
+const ocrLines = (ocr: OcrResult): OcrTextLine[] =>
+  ocr.blocks.flatMap(block => {
+    if (block.lines.length > 0) {
+      return block.lines;
+    }
+    if (!block.text) {
+      return [];
+    }
+    return [
+      block.frame
+        ? { text: block.text, frame: block.frame }
+        : { text: block.text },
+    ];
+  });
+
+/** One OCR line as a compact `{t,x,y,w,h}` record — the geometry the parser ranks on. */
+const lineGeometry = (
+  line: OcrTextLine,
+): { t: string; x?: number; y?: number; w?: number; h?: number } => {
+  const frame = line.frame;
+  if (!frame) {
+    return { t: line.text };
+  }
+  return {
+    t: line.text,
+    x: Math.round(frame.x),
+    y: Math.round(frame.y),
+    w: Math.round(frame.width),
+    h: Math.round(frame.height),
+  };
+};
+
 /** Render one recognition pass as a human-readable diagnostics block. Pure. */
 export const formatRecognitionDiagnostics = (
   diagnostics: RecognitionDiagnostics,
@@ -54,10 +90,14 @@ export const formatRecognitionDiagnostics = (
     result.candidates.length > 0
       ? result.candidates.map(candidateLine)
       : ['  (none)'];
+  // Per-line frames (top-left x,y + w,h) as JSON — the version selection anchors on
+  // these, so dumping them makes a misparse diagnosable without a screenshot.
+  const lines = JSON.stringify(ocrLines(ocr).map(lineGeometry));
   return [
     '[recognition] raw OCR text:',
     ocr.text.length > 0 ? ocr.text : '(empty)',
     `[recognition] parsed source: ${JSON.stringify(source)}`,
+    `[recognition] OCR lines (JSON): ${lines}`,
     '[recognition] ranked candidates:',
     ...candidates,
   ].join('\n');
@@ -67,13 +107,28 @@ export const formatRecognitionDiagnostics = (
 // On a bundled device build with no debugger attached, console.log has nowhere to
 // surface — so the dev overlay (RecognitionDiagnosticsOverlay) reads the latest
 // block from here instead. useSyncExternalStore-compatible: subscribe(onChange)
-// returns an unsubscribe, getLastRecognitionDiagnostics() is the snapshot.
+// returns an unsubscribe, getLastRecognitionDiagnostics() is the snapshot. A
+// bounded session history is also kept so every capture can be exported (shared)
+// at once — screenshotting each read is tedious.
 let lastBlock: string | undefined;
+const history: string[] = [];
+/** Cap the exportable history so a long session can't grow without bound. */
+const MAX_HISTORY = 30;
+/** Divider between captures in the exported history. */
+const HISTORY_DIVIDER = '\n\n────────────────────────────\n\n';
 const listeners = new Set<() => void>();
 
 /** The latest formatted diagnostics block, or undefined before the first scan. */
 export const getLastRecognitionDiagnostics = (): string | undefined =>
   lastBlock;
+
+/**
+ * Every diagnostics block captured this session (oldest → newest, capped),
+ * joined into one string for off-device export (the overlay's Share button).
+ * Empty before the first scan; resets on app relaunch (module state).
+ */
+export const getRecognitionDiagnosticsHistory = (): string =>
+  history.join(HISTORY_DIVIDER);
 
 /** Subscribe to diagnostics updates; returns an unsubscribe. */
 export const subscribeRecognitionDiagnostics = (
@@ -95,7 +150,11 @@ export const logRecognitionDiagnostics = (
   const block = formatRecognitionDiagnostics(diagnostics);
   console.log(block);
   // Publish to the on-screen overlay (the only channel a bundled, debugger-less
-  // device build can actually show).
+  // device build can actually show), and append to the exportable history.
   lastBlock = block;
+  history.push(block);
+  if (history.length > MAX_HISTORY) {
+    history.shift();
+  }
   listeners.forEach(listener => listener());
 };

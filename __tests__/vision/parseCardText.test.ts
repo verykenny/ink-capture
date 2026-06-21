@@ -239,9 +239,12 @@ describe('parseCardText — real spike captures', () => {
         line('19/204 - EN .4', f(507, 3561, 368, 61)),
       ]),
     );
-    // The name line is so tall the smaller subtitle drops; the matcher still
-    // resolves "Mirabel Madrigal" via the exact collector tier.
-    expect(result).toEqual({ collectorNumber: '19', name: 'MIRABEL MADRIGAL' });
+    // The version ("Prophecy Finder") sits between the name and the type line, so
+    // it is taken regardless of its smaller height — the full `NAME version` key.
+    expect(result).toEqual({
+      collectorNumber: '19',
+      name: 'MIRABEL MADRIGAL Prophecy Finder',
+    });
   });
 
   test('Restoring the Heart #39: a song (no subtitle); the "Action" type line drops out', () => {
@@ -412,5 +415,482 @@ describe('parseCardText — the name is the tallest ALL-CAPS line', () => {
       ]),
     );
     expect(result).toEqual({ collectorNumber: '12', name: 'Elsa Snow Queen' });
+  });
+});
+
+/**
+ * D3 version/subtitle selection (test-first). On live captures the subtitle the
+ * height/gap heuristic admits is the ARTIST CREDIT or an ABILITY fragment, not the
+ * card VERSION — so the `name + version` match key is wrong and confidence is
+ * capped (Boun: 29% with the credit vs ~100% with the version). The Lorcana layout
+ * is NAME → version → `Storyborn • …` type line → ability/flavor → artist credit →
+ * collector, so the fix adds three predicates on top of the existing height/gap
+ * gates: anchor the subtitle ABOVE the first type line, and exclude type-line- and
+ * artist-credit-shaped lines from contention.
+ *
+ * These geometries reproduce the live failure: a credit/fragment lands INSIDE the
+ * gap window (the clean fixtures above never do — the gap gate already excludes the
+ * same lines, so the predicates are inert there). IP-clean: real card NAMES +
+ * collector NUMBERS (facts); artist names and ability/flavor lines are SYNTHESIZED
+ * placeholder, never the copyrighted text.
+ */
+describe('parseCardText — the version is anchored to the type line, not the artist credit', () => {
+  test('a glyph-prefixed artist credit in the gap window does not beat the version below it', () => {
+    // The OCR surfaced ">A. Hoffman" with a frame inside the title gap, ABOVE the
+    // version, so height/gap admitted it and it sorted topmost. The leading artist
+    // glyph must drop it so "Tireless Boatman" wins.
+    const result = parseCardText(
+      ocr([
+        line('BOUN', f(120, 500, 460, 140)), // all-caps name
+        line('>A. Hoffman', f(120, 560, 360, 80)), // artist credit, crept into the gap
+        line('Tireless Boatman', f(120, 660, 520, 78)), // the real version, below it
+        line('104/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '104',
+      name: 'BOUN Tireless Boatman',
+    });
+  });
+
+  test('a co-artist slash credit in the gap window does not beat the version below it', () => {
+    const result = parseCardText(
+      ocr([
+        line('GIZMODUCK', f(120, 500, 700, 140)),
+        line('Mark Tan / Lisa Vega', f(120, 560, 540, 80)), // co-artist credit
+        line('Suited Up', f(120, 660, 320, 78)), // the real version
+        line('105/204 EN 7', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '105',
+      name: 'GIZMODUCK Suited Up',
+    });
+  });
+
+  test('a type line that height/gap would admit is excluded from subtitle contention', () => {
+    // A short version is absent; the "Storyborn • King" type line is tall and close
+    // enough to pass the gap/height gates and would be taken as the subtitle. The
+    // type-line-shape predicate drops it so only the bare name resolves.
+    const result = parseCardText(
+      ocr([
+        line('TRITON', f(120, 500, 520, 180)),
+        line('Storyborn • King', f(120, 610, 560, 120)), // type line — qualifies by size
+        line('112/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '112', name: 'TRITON' });
+  });
+
+  test('the small version is recovered while a below-type-line ability fragment is excluded', () => {
+    // The version "Royal Heir" OCR'd small (h70, under ½ the tall name) but sits
+    // between the name and the type line, so it is taken regardless of height. The
+    // ability fragment "reduced by 1)" sits below the type line and is excluded.
+    const result = parseCardText(
+      ocr([
+        line('JASMINE', f(120, 500, 560, 180)),
+        line('Royal Heir', f(120, 610, 360, 70)), // version OCR'd small — above the type line
+        line('Storyborn • Princess', f(120, 700, 620, 85)), // type line
+        line('reduced by 1)', f(120, 760, 420, 110)), // ability fragment below the type line
+        line('47/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '47',
+      name: 'JASMINE Royal Heir',
+    });
+  });
+
+  test('a comparably-sized prose line below the type line is excluded by the ceiling, not admitted by height', () => {
+    const result = parseCardText(
+      ocr([
+        line('MERLIN', f(120, 500, 520, 200)),
+        line('Storyborn • Sorcerer', f(120, 620, 640, 90)), // type line → the ceiling
+        // a tall, comparably-sized line the height/gap gates would otherwise admit:
+        line('Lorem ipsum dolor', f(120, 720, 700, 130)),
+        line('77/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '77', name: 'MERLIN' });
+  });
+
+  test('the type-word ceiling is \\b-bounded: a version starting with a type-word COMPOUND is kept', () => {
+    // Guards the `\b` in TYPE_LINE: "Songbird" is a compound, not the "Song" card
+    // type, so a version beginning with it must NOT be excluded as a type line.
+    // (Drop the `\b` and this regresses to the bare name.)
+    const result = parseCardText(
+      ocr([
+        line('SCUTTLE', f(120, 500, 520, 150)),
+        line('Songbird Companion', f(120, 655, 540, 90)), // version — "Song" + "bird" = no \b
+        line('Storyborn • Ally', f(120, 760, 540, 80)), // the real type line
+        line('33/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '33',
+      name: 'SCUTTLE Songbird Companion',
+    });
+  });
+});
+
+/**
+ * The four D2 device-capture diagnostic cards (2026-06-20), with the live failure
+ * geometry the `DEBUG_RECOGNITION` overlay exposed: the artist credit OCR'd into
+ * the title gap above the version, and the type line sits just below the version.
+ * Before the fix the credit was taken as the subtitle (a wrong `name + version`
+ * key → confidence capped below the 0.70 floor → an extra manual tap); after it,
+ * each resolves to its true `NAME Version` and correct collector number.
+ *
+ * IP-clean: real NAMES + NUMBERS (facts); artist names are SYNTHESIZED placeholder.
+ */
+describe('parseCardText — the four diagnostic cards resolve to NAME + version', () => {
+  test('GIZMODUCK #105 → "GIZMODUCK Suited Up" (co-artist credit dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('GIZMODUCK', f(120, 500, 700, 150)),
+        line('Mark Tan / Lisa Vega', f(120, 560, 540, 85)), // credit in the gap
+        line('Suited Up', f(120, 655, 320, 85)), // version
+        line('Storyborn • Inventor', f(120, 720, 600, 80)), // type line
+        line('105/204 EN 7', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '105',
+      name: 'GIZMODUCK Suited Up',
+    });
+  });
+
+  test('BOUN #104 → "BOUN Tireless Boatman" (glyph credit dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('BOUN', f(120, 500, 460, 150)),
+        line('>Grace Lim', f(120, 560, 340, 85)), // credit in the gap
+        line('Tireless Boatman', f(120, 655, 520, 85)), // version
+        line('Storyborn • Ally', f(120, 720, 540, 80)), // type line
+        line('104/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '104',
+      name: 'BOUN Tireless Boatman',
+    });
+  });
+
+  test('BALOO #69 → "BALOO Laid-Back Bear" (guillemet credit dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALOO', f(120, 500, 520, 150)),
+        line('» Otto Park', f(120, 560, 360, 85)), // credit in the gap
+        line('Laid-Back Bear', f(120, 655, 460, 85)), // version
+        line('Storyborn • Ally', f(120, 720, 540, 80)), // type line
+        line('69/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '69',
+      name: 'BALOO Laid-Back Bear',
+    });
+  });
+
+  test('DAVID XANATOS #184 → "DAVID XANATOS Steel Clan Leader" (co-artist credit dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('DAVID XANATOS', f(120, 500, 760, 150)),
+        line('R. Singh / T. Okoro', f(120, 560, 560, 85)), // credit in the gap
+        line('Steel Clan Leader', f(120, 655, 520, 85)), // version
+        line('Storyborn • Villain', f(120, 720, 600, 80)), // type line
+        line('184/204 EN 10', f(120, 1500, 320, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '184',
+      name: 'DAVID XANATOS Steel Clan Leader',
+    });
+  });
+});
+
+/**
+ * D3 trailing-digit guard (test-first). The stat-digit stripper over-fired on
+ * `BALOO`: OCR read the final O as a 0 → `BALO0`, and the stripper took the 0 →
+ * `BALO`, dropping a real letter and degrading the match. A SINGLE digit fused to
+ * letters is almost always an O/0 (or I/1, S/5, B/8) misread, not a merged stat;
+ * a whitespace-separated digit or a run of 2+ digits is a real stat. So strip only
+ * the latter and keep a single fused digit.
+ */
+describe('parseCardText — a single fused trailing digit is an O/0 misread, kept', () => {
+  test('BALO0 (final O misread as 0) is kept, not truncated to BALO', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALO0', f(120, 500, 400, 130)),
+        line('69/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '69', name: 'BALO0' });
+  });
+
+  test('the fused misread digit survives so the version still joins the key', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALO0', f(120, 500, 400, 130)),
+        line('Laid-Back Bear', f(120, 640, 420, 90)),
+        line('69/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '69',
+      name: 'BALO0 Laid-Back Bear',
+    });
+  });
+
+  test('a run of 2+ fused digits is a real stat and is still stripped (MADRIGAL22 → MADRIGAL)', () => {
+    const result = parseCardText(
+      ocr([
+        line('MADRIGAL22', f(120, 500, 500, 130)),
+        line('19/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '19', name: 'MADRIGAL' });
+  });
+
+  test('a whitespace-separated trailing digit is a stat and is still stripped', () => {
+    const result = parseCardText(
+      ocr([
+        line('GASTON 5', f(120, 500, 400, 130)),
+        line('100/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '100', name: 'GASTON' });
+  });
+});
+
+/**
+ * Real `DEBUG_RECOGNITION` device captures (2026-06-21). On these the version
+ * prints SMALLER than the big all-caps name, so the old height gate dropped it and
+ * the parser grabbed the artist credit / ability text / flavor below it — the live
+ * failures the user reported:
+ *   - DAVID XANATOS → "DAVID XANATOS chosen character." (ability fragment)
+ *   - BALOO         → "BALOO ura Pauseli"               (artist credit, OCR'd)
+ *   - BOUN          → "BOUN Alice Pisoni"               (artist credit)
+ *   - PROMISING LEAD→ "PROMISING LEAD ley lines…right here!" (an Action card —
+ *                      no version at all — grabbed flavor text)
+ * Anchoring the version to the type line fixes all four: the character cards
+ * recover `NAME version` whatever the version's size, and the Action card yields
+ * the bare name (nothing sits between the name and its `Action` type line).
+ *
+ * Frames are authored in physical top-to-bottom order (ML Kit returns the lines in
+ * a different block order, but the parser decides on frame.y). IP-clean: real card
+ * NAMES + collector NUMBERS (facts); ability/flavor/artist lines are the user's
+ * reported OCR, used only to reproduce the geometry.
+ */
+describe('parseCardText — real device captures (2026-06-21): small version recovered, no version on Action', () => {
+  test('DAVID XANATOS #184 → "DAVID XANATOS Steel Clan Leader" (was "…chosen character.")', () => {
+    const result = parseCardText(
+      ocr([
+        line('32', f(900, 470, 80, 130)), // strength glyph — digits, ignored
+        line('DAVID XANATOS', f(120, 500, 760, 150)), // name (tall)
+        line('Steel Clan Leader', f(120, 650, 520, 70)), // version — prints SMALL
+        line('Storyborn• Villain', f(120, 740, 600, 80)), // type line
+        line(
+          'MINOR INCONVENIENCE When you play this character',
+          f(120, 900, 1900, 60),
+        ),
+        line('chosen character.', f(120, 1050, 380, 60)), // the fragment that used to win
+        line('>Renato Roldan / Amanda Duarte', f(120, 1300, 700, 55)), // artist credit
+        line('184/204- EN. 10', f(120, 1450, 360, 55)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '184',
+      name: 'DAVID XANATOS Steel Clan Leader',
+    });
+  });
+
+  test('BALOO #69 → "BALOO Laid-Back Bear" (was "BALOO ura Pauseli")', () => {
+    const result = parseCardText(
+      ocr([
+        line('9a', f(60, 470, 70, 120)), // cost glyph — <3 letters, ignored
+        line('BALOO', f(120, 500, 520, 150)),
+        line('Laid-Back Bear', f(120, 650, 460, 70)), // version — prints small
+        line('Storyborn• Ally', f(120, 740, 540, 80)), // type line (physically here)
+        line(
+          'I tell ya for a spooky forest this place is',
+          f(120, 920, 1800, 60),
+        ),
+        line('ura Pauseli', f(120, 1300, 360, 55)), // artist credit (Laura Pauseli, OCR'd)
+        line('69/204 · EN 10', f(120, 1450, 360, 55)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '69',
+      name: 'BALOO Laid-Back Bear',
+    });
+  });
+
+  test('BOUN #104 → "BOUN Precocious Entrepreneur" (was "BOUN Alice Pisoni")', () => {
+    const result = parseCardText(
+      ocr([
+        line('3', f(60, 470, 60, 120)), // cost glyph — digit, ignored
+        line('BOUN', f(120, 500, 460, 150)),
+        line('Precocious Entrepreneur', f(120, 650, 640, 70)), // version — prints small
+        line('Storyborn • Ally', f(120, 740, 540, 80)), // type line
+        line(
+          'If you see any hungry faces send em my way',
+          f(120, 950, 1700, 60),
+        ),
+        line('Alice Pisoni', f(120, 1300, 360, 55)), // artist credit (no glyph/slash)
+        line('104/204 EN 2', f(120, 1450, 340, 55)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '104',
+      name: 'BOUN Precocious Entrepreneur',
+    });
+  });
+
+  test('PROMISING LEAD #162 (Action) → "PROMISING LEAD" — no version (was flavor text)', () => {
+    const result = parseCardText(
+      ocr([
+        line('PROMISING LEAD', f(120, 500, 700, 150)),
+        line('Action', f(120, 660, 240, 75)), // type line directly under the name
+        line(
+          'Chosen character gets +1 and gains Support this turn',
+          f(120, 840, 1900, 60),
+        ),
+        line("ley lines...The answer's right here!", f(120, 1100, 1200, 60)), // flavor — used to win
+        line('162/204· EN 10', f(120, 1400, 360, 55)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '162', name: 'PROMISING LEAD' });
+  });
+});
+
+/**
+ * Real ROTATED device captures (2026-06-21). The phone produces a sideways still,
+ * so ML Kit reports each line as `w≈capHeight, h≈textLength` and the card's
+ * top-to-bottom axis is the image X axis — exactly the geometry that made the
+ * parser grab ability/flavor text ("DAVID XANATOS chosen character.").
+ *
+ * Frames are the VERBATIM `{x,y,w,h}` from the device's `OCR lines (JSON)` dump, so
+ * the rotation is real, not reconstructed. IP-clean: real NAMES + versions + type
+ * lines + collector numbers (facts); every ability/flavor line and artist credit is
+ * replaced with synthesized placeholder of the same word-count class (so the
+ * title-vs-prose filtering and the artist-glyph exclusion behave identically) —
+ * never the copyrighted text.
+ */
+describe('parseCardText — real rotated captures resolve NAME + version (sideways scan)', () => {
+  test('THOMAS #1 (rotated) → "THOMAS Wide-Eyed Recruit"', () => {
+    const result = parseCardText(
+      ocr([
+        line('THOMAS', f(2285, 1618, 98, 388)),
+        line('Wide-Eyed Recruit', f(2400, 1576, 69, 425)),
+        line('O', f(2218, 454, 235, 355)), // lore glyph
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2862, 620, 104, 1372),
+        ),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing',
+          f(2963, 853, 88, 992),
+        ),
+        line('>Artist Name', f(3272, 1677, 40, 342)),
+        line('1/204EN.11', f(3332, 1763, 43, 259)),
+        line('Storyborn • Ally', f(2503, 1014, 70, 391)),
+        line('Disney Lorcana', f(3248, 388, 46, 214)),
+        line('ODisney', f(3286, 386, 35, 121)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '1',
+      name: 'THOMAS Wide-Eyed Recruit',
+    });
+  });
+
+  test('DAVID XANATOS #184 (rotated) → "DAVID XANATOS Steel Clan Leader" (ability fragment dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('DAVID XANATOS', f(2359, 1218, 98, 722)),
+        line('Steel Clan Leader', f(2470, 1535, 61, 411)),
+        line('Storyborn • Villain', f(2587, 939, 62, 455)),
+        line('B2', f(2351, 372, 189, 387)), // strength glyph
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2702, 593, 101, 1387),
+        ),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2802, 565, 78, 1384),
+        ),
+        line('lorem ipsum', f(2879, 1512, 64, 438)), // the fragment the old parser grabbed
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(3032, 610, 85, 1339),
+        ),
+        line('lorem ipsum', f(3116, 1552, 76, 406)),
+        line('lorem ipsum', f(3195, 1561, 69, 391)),
+        line('Artist One / Artist Two', f(3341, 1407, 56, 584)),
+        line('184/204 EN.10', f(3398, 1666, 61, 350)),
+        line('Disney Lorcana', f(3361, 342, 42, 211)),
+        line('ODisney', f(3398, 340, 38, 122)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '184',
+      name: 'DAVID XANATOS Steel Clan Leader',
+    });
+  });
+
+  test('GIZMODUCK #105 (rotated) → "GIZMODUCK Suited Up" (Resist fragment dropped)', () => {
+    const result = parseCardText(
+      ocr([
+        line('GIZMODUCK', f(2305, 1412, 105, 530)),
+        line('Suited Up', f(2418, 1719, 73, 227)),
+        line('Storyborn • Inventor', f(2536, 917, 69, 502)),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2734, 738, 96, 1208),
+        ),
+        line('lorem ipsum dolor', f(2826, 1569, 93, 382)), // the fragment the old parser grabbed
+        line('lorem ipsum dolor sit', f(2942, 761, 104, 1189)),
+        line('lorem ipsum dolor sit', f(3048, 899, 91, 1054)),
+        line('>Artist Name', f(3275, 1709, 63, 276)),
+        line('105/204 · EN.7', f(3339, 1691, 58, 315)),
+        line('Disney Lorcana', f(3297, 342, 48, 227)),
+        line('ODisney', f(3339, 340, 39, 134)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '105',
+      name: 'GIZMODUCK Suited Up',
+    });
+  });
+
+  test('PROMISING LEAD #162 (rotated, Action) → "PROMISING LEAD" — no version', () => {
+    const result = parseCardText(
+      ocr([
+        line('PROMISING LEAD', f(2223, 834, 94, 746)),
+        line('Action', f(2406, 1134, 53, 155)),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit',
+          f(2554, 669, 67, 1281),
+        ),
+        line(
+          'lorem ipsum dolor sit amet consectetur elit',
+          f(2623, 1034, 73, 954),
+        ),
+        line('lorem ipsum dolor', f(2629, 534, 53, 409)),
+        line('lorem ipsum dolor sit', f(2698, 1396, 65, 558)),
+        line(
+          'lorem ipsum dolor sit amet consectetur adipiscing elit sed',
+          f(2843, 488, 75, 1464),
+        ),
+        line('lorem ipsum dolor sit amet', f(2914, 1120, 76, 870)),
+        line('lorem ipsum', f(2991, 1665, 76, 285)),
+        line('>Greez', f(3146, 1852, 43, 152)),
+        line('162/204 · EN .10', f(3203, 1699, 49, 303)),
+        line('Disney Lorcana', f(3159, 395, 34, 208)),
+        line('ODisney', f(3196, 394, 33, 122)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '162', name: 'PROMISING LEAD' });
   });
 });
