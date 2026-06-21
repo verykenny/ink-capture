@@ -383,31 +383,47 @@ lines…`). Fix: when a type line is found below the name, the **version is the
     name, confirming the fuzzy-name resilience. Captured via the new
     `DEBUG_RECOGNITION` Share/export + per-line frame dump. _(Extended mixed-scan
     soak remains the standing DoD native-exception note.)_
-- \*\*E2 error/offline/empty states is implemented — ⏳ pending on-device acceptance
-  - merge** (`feature/error-states`, PR #38 → `development`, OPEN): a new
-    `appInitStore` startup state machine gates the app — it reads the **local catalog
-    cache before any network call**, so an offline launch with a cached catalog boots
-    straight to `ready` (the network `sync()` becomes a fail-soft background refresh)
-    and only a first run with no cache awaits the download. Offline-no-cache and a
-    download error collapse to one recoverable `first-run-failed` → Retry; hard
-    failures (DB init, a broken local read) surface an error gate instead of a hung
-    spinner. No-match scans route to the catalog search with a `reason:'no-match'`
-    prompt; empty-collection / empty-search states are friendly and test-locked.
-    **Reactive offline detection — no `netinfo`, no new dep; A3 contracts + `sync()` /
-    `HttpJsonClient` + `AppServices` untouched** (12 files). Gate green on Node 26
-    (348 tests, +10; test-first). An adversarial multi-agent review found 2
-    low-severity hardening gaps, both fixed. **Architect code review PASSED.\*\*
-  * **⏳ Merge is gated on 3 on-device manual-acceptance checks** (airplane-mode
-    first run; airplane-mode cached launch; a no-match scan) — they need a physical
-    device and are unchecked boxes in PR #38 for human sign-off.
+- **E2 error/offline/empty states is complete — ✅ merged + on-device acceptance
+  PASSED** (`feature/error-states`, PR #38 → `development`, **MERGED `393c208`**): a
+  new `appInitStore` startup state machine gates the app — it reads the **local
+  catalog cache before any network call**, so an offline launch with a cached catalog
+  boots straight to `ready` (the network `sync()` becomes a fail-soft background
+  refresh) and only a first run with no cache awaits the download. Offline-no-cache
+  and a download error collapse to one recoverable `first-run-failed` → Retry; hard
+  failures (DB init, a broken local read) surface an error gate instead of a hung
+  spinner. No-match scans route to the catalog search with a `reason:'no-match'`
+  prompt; empty-collection / empty-search states are friendly and test-locked.
+  **Reactive offline detection — no `netinfo`, no new dep; A3 contracts + `sync()` /
+  `HttpJsonClient` + `AppServices` untouched** (12 files). Gate green on Node 26
+  (348 tests, +10; test-first). An adversarial multi-agent review found 2
+  low-severity hardening gaps, both fixed. **Architect code review PASSED.**
+  - **✅ On-device acceptance PASSED (2026-06-21).** All 3 manual checks ran green on
+    a physical device: **airplane-mode first run** → setup-needed + Retry (no hung
+    spinner); **airplane-mode cached launch** → boots straight to `ready`, fully
+    usable; **no-match scan** → routes to catalog search with the `reason:'no-match'`
+    prompt. **Process note:** PR #38 was **merged before** these checks ran, so they
+    were **post-merge verification**, not a pre-merge gate — now closed.
+- **Per-developer iOS code signing is wired** (`chore/ios-signing-xcconfig`,
+  PR #40 → `development`, **MERGED `49a6068`**): the Apple `DEVELOPMENT_TEAM` now
+  lives only in a **git-ignored** `ios/Signing.local.xcconfig` (committed template:
+  `ios/Signing.local.xcconfig.example`), included into the app's Pods base xcconfigs
+  by an idempotent Podfile `post_install` hook (re-applies on every `pod install`).
+  The team ID is **never** baked into the tracked `project.pbxproj`, so a stray
+  working-tree `git checkout`/`reset` can no longer wipe it — the exact failure that
+  broke device signing during an earlier review. `#include?` (optional) keeps CI / a
+  fresh clone building without the file. Verified post-merge: signing resolves to the
+  real Team ID, full JS gate green (348 tests), and a device build succeeds.
+  **Lesson recorded: review branches read-only or in a worktree — never run a
+  tree-wide `git checkout -- .` with uncommitted changes present.**
 - **Recognition follow-ons (tracked, unscheduled):** (i) capture orientation
   (EXIF before ML Kit — small native change, also lifts OCR accuracy); (ii) lenient
   `N/204` collector-number parse (pure logic). Capture-quality / **multi-frame**
   remains the deferred reliability lever. Touch opportunistically; not E2 work.
-- **Next action:** finish **E2** (run the 3 device checks → merge PR #38), then
-  **E1** (edit/remove + manual add — incl. the off-catalog manual entry E2
-  deliberately excluded; mind the B3 `update()`-into-existing-stack UNIQUE edge)
-  and **E3** (collection search + stats).
+- **Next action:** **E1** (edit/remove + manual add — incl. the off-catalog manual
+  entry E2 deliberately excluded; mind the B3 `update()`-into-existing-stack UNIQUE
+  edge), then **E3** (collection search + stats). The two recognition follow-ons
+  above remain tracked/unscheduled. _(E2 and the iOS signing infra both landed
+  2026-06-21; the next milestone task is unscoped pending Build Lead selection.)_
 
 **Settled decisions (don't re-litigate):**
 
@@ -907,7 +923,7 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 
 - **E1. Edit/remove entries + manual add** — `feature/collection-edit` (M)
 
-#### E2. Error/offline/empty states — `feature/error-states` (M) — ⏳ implemented; on-device acceptance + merge pending (PR #38)
+#### E2. Error/offline/empty states — `feature/error-states` (M) — ✅ complete — merged (PR #38, `393c208`) + on-device acceptance PASSED
 
 - **Scope (delivered):** first-run catalog download (progress + failure/Retry);
   offline behavior (cached-catalog launch is fully usable; first-run-no-network →
@@ -930,9 +946,10 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   offline-no-cache setup-needed; cached launch skips the downloading phase),
   no-match routing, empty states. Adversarial multi-agent review: 2 low-severity
   gaps found + fixed.
-- **⏳ On-device acceptance (human, before merge):** airplane-mode first run;
-  airplane-mode cached launch; a no-match scan — unchecked boxes in PR #38 (the
-  camera/device path is the documented DoD native exception).
+- **✅ On-device acceptance PASSED (2026-06-21, post-merge):** airplane-mode first
+  run → setup-needed + Retry; airplane-mode cached launch → boots usable; no-match
+  scan → catalog search. PR #38 was merged before these ran, so they were post-merge
+  verification (the camera/device path is the documented DoD native exception).
 
 - **E3. Collection search + stats** — `feature/collection-stats` (M): search,
   counts by set, completion %.
