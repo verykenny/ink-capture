@@ -8,3 +8,4 @@ export * from './matching/levenshtein';
 export * from './matching/cardMatching';
 export * from './matching/collectionMerge';
 export * from './matching/collectionEntryValidation';
+export * from './stats/collectionStats';

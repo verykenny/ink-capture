@@ -17,6 +17,8 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CollectionListScreen } from '@ui/collection/CollectionListScreen';
+import { StatsScreen } from '@ui/collection/StatsScreen';
+import { StatsHeaderButton } from '@ui/collection/StatsHeaderButton';
 import { EditEntryScreen } from '@ui/collection/EditEntryScreen';
 import { ScanScreen } from '@ui/scan/ScanScreen';
 import { CardSearchScreen } from '@ui/scan/CardSearchScreen';
@@ -34,7 +36,16 @@ export function RootNavigator(): React.JSX.Element {
       <Stack.Screen
         name="Collection"
         component={CollectionListScreen}
-        options={{ title: 'My Collection' }}
+        options={({ navigation }) => ({
+          title: 'My Collection',
+          // eslint-disable-next-line react/no-unstable-nested-components -- React Navigation's headerRight is a render prop, not a remounted component; StatsHeaderButton itself is module-scope.
+          headerRight: () => <StatsHeaderButton navigation={navigation} />,
+        })}
+      />
+      <Stack.Screen
+        name="Stats"
+        component={StatsScreen}
+        options={{ title: 'Stats' }}
       />
       <Stack.Screen
         name="EditEntry"

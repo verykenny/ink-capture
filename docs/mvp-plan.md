@@ -438,12 +438,15 @@ lines…`). Fix: when a type line is found below the name, the **version is the
   (EXIF before ML Kit — small native change, also lifts OCR accuracy); (ii) lenient
   `N/204` collector-number parse (pure logic). Capture-quality / **multi-frame**
   remains the deferred reliability lever. Touch opportunistically; not E2 work.
-- **Next action:** **E3** (collection search + stats — `feature/collection-stats`),
-  the last remaining v1 milestone task. The two recognition follow-ons above remain
-  tracked/unscheduled (a separate opportunistic chore — do not fold into E3). _(E1
-  landed 2026-06-21; with A1–A3, B1–B3, C1–C2, D1–D3, E1, E2 all merged plus native CI
-  and per-developer signing, E3 is the final MVP/v1 task before the deferred/stretch
-  tier.)_
+- **Next action:** **E3 is implemented** (collection search + stats —
+  `feature/collection-stats`, PR open → `development`; see the E3 milestone +
+  decisions record), which was the last remaining v1 milestone task — **once it
+  merges, v1/MVP is complete.** The only remaining work is the **deferred/stretch
+  tier** (Deck, second recognizer backend, pricing, export/import, cloud sync) plus
+  the two tracked recognition follow-ons below (EXIF orientation; lenient `N/204`
+  parse — a separate opportunistic chore, never folded into a milestone). _(With
+  A1–A3, B1–B3, C1–C2, D1–D3, E1, E2 merged and E3 implemented, plus native CI and
+  per-developer signing, the documented MVP loop + v1 hardening are done.)_
 
 **Settled decisions (don't re-litigate):**
 
@@ -517,6 +520,24 @@ treat as the default unless a human overrides:
 >   `AppServices.customCards`; new `collectionStore` `update`/`remove`. No
 >   recognition-pipeline / `CardRecognizer` / `CatalogService` / `HttpJsonClient`
 >   changes.
+
+> **E3 decisions (ratified, `feature/collection-stats`) — closes v1.**
+>
+> - Completion denominator derived **in-memory from `catalog.getAllCards()`**
+>   inside a pure `computeCollectionStats(entries, catalogCards)` reducer — **no
+>   `CatalogService` method, no migration** (an interface method would force 8
+>   fake/literal updates and is redundant).
+> - "Collected" = distinct catalog `cardId` owned (finish/condition/quantity-
+>   agnostic). Off-catalog (`manual:`) + unresolved excluded from set %, counted
+>   in overall totals + surfaced separately. Counts show distinct (completion) and
+>   total copies. Completion spans all distinct catalog rows incl.
+>   Enchanted/Special (base-set-only deferred).
+> - Set names deferred → `setCode` labels (`LorcanaAllCards.sets` is
+>   untyped/unconsumed; migration 004 `catalog_sets` is a follow-up after
+>   verifying the shape against a fixture).
+> - Search = pure normalized substring over the saved collection (name+version
+>   primary, exact collectorNumber + setCode token secondary); not the fuzzy
+>   `matchEntries`. No new deps, no A3 change.
 
 - **B2 — ✅ done:** `react-native-config` (^1.6.1) added so bare RN reads an
   optional `CATALOG_API_BASE_URL` override from `.env` (ask-first gate cleared by
@@ -993,8 +1014,27 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
   scan → catalog search. PR #38 was merged before these ran, so they were post-merge
   verification (the camera/device path is the documented DoD native exception).
 
-- **E3. Collection search + stats** — `feature/collection-stats` (M): search,
-  counts by set, completion %.
+#### E3. Collection search + stats — `feature/collection-stats` (M) — ✅ complete — implemented test-first (PR open → `development`)
+
+- **Scope (delivered):** a **Stats** view (reached from a new Collection
+  `headerRight` button) showing overall completion % + distinct-owned / catalog
+  size, total copies, and separate off-catalog / unknown counts, plus per-set
+  rows (`setCode`, owned/size, %, copies); and an **in-place search** box on the
+  Collection list (normalized substring over name+version, plus exact
+  collectorNumber and setCode token) with a no-results state distinct from the
+  empty-collection state.
+- **How:** a pure `computeCollectionStats(entries, catalogCards)` reducer in
+  `@domain` derives the completion denominator **in-memory** from
+  `catalog.getAllCards()` — **no `CatalogService` method, no migration**; a pure
+  `collectionSearch` helper (reusing the shared `normalizeCardName`) filters the
+  saved list. Two UI surfaces only; see the **E3 decisions** record above.
+- **A3 / seam integrity:** `CatalogService` / `CollectionRepository` /
+  `AppServices` / migrations / the recognition pipeline all untouched; **no new
+  runtime deps.**
+- **Tested:** test-first for both pure units (`computeCollectionStats`,
+  `filterCollection`/`matchesQuery`) plus RNTL for the Stats screen, the header
+  button, and the Collection search (filter + no-results). Full gate green on
+  Node 26.
 
 ---
 
@@ -1014,11 +1054,11 @@ first.
 
 ## 4. MVP cut line
 
-| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable.                          |
-| **v1**                 | D2, **D3**, E1, E2, E3                                                                               | Manual correction (D2 ✅), recognition confidence refinement (D3), edit/remove, error/offline states, stats/search — the "hardening + improved UX" the roadmap lists. |
-| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                                                    |
+| Tier                   | Tasks                                                                                                | Rationale                                                                                                                                                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **MVP**                | A1, A2, A3, B1, B2, B3, C1, C2, **D1**, plus minimal browse (in C2)                                  | Delivers the documented MVP loop: scan → identify (real OCR) → add to local collection with quantity/finish/condition, persisted, browsable.                                                                                                     |
+| **v1 — ✅ complete**   | D2 ✅, D3 ✅, E1 ✅, E2 ✅, E3 ✅                                                                    | Manual correction (D2), recognition confidence refinement (D3), edit/remove (E1), error/offline states (E2), stats/search (E3) — the "hardening + improved UX" the roadmap lists. **All v1 tasks delivered; the next tier is deferred/stretch.** |
+| **Deferred / stretch** | `Deck`, second `CardRecognizer` backend (cloud/feature-matching), pricing, export/import, cloud sync | All explicitly out of MVP per README; the interface already accommodates the second backend later.                                                                                                                                               |
 
 **Nuance:** C2 ships first with the _stub_ recognizer (fully runnable, just not
 "real"). D1 is what makes it MVP-grade. If OCR accuracy disappoints in the D1
