@@ -63,12 +63,39 @@ export const formatRecognitionDiagnostics = (
   ].join('\n');
 };
 
-/** Log the diagnostics block — only when `DEBUG_RECOGNITION` is set. Dev-only. */
+// --- Dev overlay sink --------------------------------------------------------
+// On a bundled device build with no debugger attached, console.log has nowhere to
+// surface — so the dev overlay (RecognitionDiagnosticsOverlay) reads the latest
+// block from here instead. useSyncExternalStore-compatible: subscribe(onChange)
+// returns an unsubscribe, getLastRecognitionDiagnostics() is the snapshot.
+let lastBlock: string | undefined;
+const listeners = new Set<() => void>();
+
+/** The latest formatted diagnostics block, or undefined before the first scan. */
+export const getLastRecognitionDiagnostics = (): string | undefined =>
+  lastBlock;
+
+/** Subscribe to diagnostics updates; returns an unsubscribe. */
+export const subscribeRecognitionDiagnostics = (
+  onChange: () => void,
+): (() => void) => {
+  listeners.add(onChange);
+  return () => {
+    listeners.delete(onChange);
+  };
+};
+
+/** Log + publish the diagnostics block — only when `DEBUG_RECOGNITION` is set. */
 export const logRecognitionDiagnostics = (
   diagnostics: RecognitionDiagnostics,
 ): void => {
   if (!shouldLogRecognitionDiagnostics()) {
     return;
   }
-  console.log(formatRecognitionDiagnostics(diagnostics));
+  const block = formatRecognitionDiagnostics(diagnostics);
+  console.log(block);
+  // Publish to the on-screen overlay (the only channel a bundled, debugger-less
+  // device build can actually show).
+  lastBlock = block;
+  listeners.forEach(listener => listener());
 };

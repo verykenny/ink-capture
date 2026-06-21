@@ -13,7 +13,9 @@
 import Config from 'react-native-config';
 import {
   formatRecognitionDiagnostics,
+  getLastRecognitionDiagnostics,
   logRecognitionDiagnostics,
+  subscribeRecognitionDiagnostics,
 } from '@services';
 import type { OcrResult } from '@services';
 import type { RecognitionResult, RecognitionSource } from '@domain';
@@ -98,5 +100,49 @@ describe('logRecognitionDiagnostics', () => {
         result: RESULT,
       }),
     );
+  });
+});
+
+describe('recognition diagnostics sink (for the on-screen overlay)', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    delete (Config as MutableConfig).DEBUG_RECOGNITION;
+  });
+
+  test('publishes the latest block and notifies subscribers when the flag is on', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
+    const onChange = jest.fn();
+    const unsubscribe = subscribeRecognitionDiagnostics(onChange);
+
+    logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(getLastRecognitionDiagnostics()).toBe(
+      formatRecognitionDiagnostics({
+        ocr: OCR,
+        source: SOURCE,
+        result: RESULT,
+      }),
+    );
+    unsubscribe();
+  });
+
+  test('does not notify when the flag is off, and unsubscribe stops further updates', () => {
+    const onChange = jest.fn();
+    const unsubscribe = subscribeRecognitionDiagnostics(onChange);
+
+    // Flag off: no publish, no notify.
+    logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
+    expect(onChange).not.toHaveBeenCalled();
+
+    // After unsubscribe, even a flag-on log doesn't reach this listener.
+    unsubscribe();
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
+    logRecognitionDiagnostics({ ocr: OCR, source: SOURCE, result: RESULT });
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

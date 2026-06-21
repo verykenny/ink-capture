@@ -16,6 +16,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppServicesProvider } from '@state';
 import type { AppServices } from '@state';
+import { RecognitionDiagnosticsOverlay } from '@ui/dev/RecognitionDiagnosticsOverlay';
 import { createAppServices, initialize } from './compositionRoot';
 import { RootNavigator } from './navigation';
 
@@ -54,9 +55,13 @@ function App({ services }: { services?: AppServices }): React.JSX.Element {
     <SafeAreaProvider>
       {status === 'ready' ? (
         <AppServicesProvider services={appServices}>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
+          <View style={styles.root}>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+            {/* Dev-only, flag-gated; renders null unless DEBUG_RECOGNITION is set. */}
+            <RecognitionDiagnosticsOverlay />
+          </View>
         </AppServicesProvider>
       ) : (
         <View style={styles.gate}>
@@ -74,6 +79,9 @@ function App({ services }: { services?: AppServices }): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   gate: {
     flex: 1,
     alignItems: 'center',
