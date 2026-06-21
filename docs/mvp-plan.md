@@ -12,6 +12,14 @@
 
 **As of 2026-06-21:**
 
+> **Stage 1 (Alpha — the MVP loop) is COMPLETE.** The documented loop ships as the
+> **first internal Alpha (prototype)** — tag **`v0.1.0-alpha`** on `main` (release
+> commit `59965b2` = `development` `719dd9a`). This is an **internal milestone, NOT a
+> store-ready stable release.** **Stage 2 = review & select the next features**; the
+> recognition follow-ons and the deferred/stretch tier (see **Next action** below) are
+> the **initial backlog**. Stage 2 is a fresh kickoff — no follow-on or feature work
+> has started.
+
 - **A2 dev tooling + CI gate is complete** (`chore/dev-tooling-ci` →
   `development`): the four quality scripts (`lint`, `format:check`, `typecheck`,
   `test`) are wired; Jest + React Native Testing Library run a passing `App`
@@ -438,15 +446,20 @@ lines…`). Fix: when a type line is found below the name, the **version is the
   (EXIF before ML Kit — small native change, also lifts OCR accuracy); (ii) lenient
   `N/204` collector-number parse (pure logic). Capture-quality / **multi-frame**
   remains the deferred reliability lever. Touch opportunistically; not E2 work.
-- **Next action:** **E3 is implemented** (collection search + stats —
-  `feature/collection-stats`, PR open → `development`; see the E3 milestone +
-  decisions record), which was the last remaining v1 milestone task — **once it
-  merges, v1/MVP is complete.** The only remaining work is the **deferred/stretch
-  tier** (Deck, second recognizer backend, pricing, export/import, cloud sync) plus
-  the two tracked recognition follow-ons below (EXIF orientation; lenient `N/204`
-  parse — a separate opportunistic chore, never folded into a milestone). _(With
-  A1–A3, B1–B3, C1–C2, D1–D3, E1, E2 merged and E3 implemented, plus native CI and
-  per-developer signing, the documented MVP loop + v1 hardening are done.)_
+- **Next action — Stage 2 (review & select features):** Stage 1 / Alpha is **shipped**
+  (E3 merged; **`v0.1.0-alpha`** tagged on `main`). Stage 2 is to **review and select**
+  the next features from this **initial backlog**, each a fresh kickoff:
+
+  - the two tracked **recognition follow-ons** — (i) EXIF capture-orientation before
+    ML Kit (small native change, also lifts OCR accuracy); (ii) lenient `N/204`
+    collector-number parse (pure logic). A separate opportunistic chore, never folded
+    into a milestone.
+  - the **deferred/stretch tier** — Deck, a second `CardRecognizer` backend
+    (cloud/feature-matching), pricing, export/import, cloud sync.
+
+  _(A1–A3, B1–B3, C1–C2, D1–D3, E1–E3 all merged, plus native CI and per-developer
+  signing — the documented MVP loop + v1 hardening are done and tagged
+  `v0.1.0-alpha`. No Stage 2 work has started.)_
 
 **Settled decisions (don't re-litigate):**
 
