@@ -203,4 +203,27 @@ describe('createAppInitStore', () => {
     expect(catalog.getAllCards).not.toHaveBeenCalled(); // never touched the cache
     await db.close();
   });
+
+  test('a local cache-read failure short-circuits to error (never a hung spinner), without rejecting', async () => {
+    const { db, collectionStore } = await makeCollection(false);
+    const catalog = fakeCatalog({
+      getAllCards: jest.fn(async () => {
+        throw new Error('db read boom'); // a raw SQLite read can reject
+      }),
+    });
+    const store = createAppInitStore({
+      persistence: okPersistence(),
+      catalog,
+      collectionStore,
+    });
+
+    // start() must own this error too — it must NOT reject (App calls it
+    // fire-and-forget, so a rejection would strand the spinner with no Retry).
+    await store.getState().start();
+
+    expect(store.getState().phase).toBe('error'); // a terminal phase, not 'starting'
+    expect(store.getState().error).toMatch(/db read boom/);
+    expect(catalog.sync).not.toHaveBeenCalled(); // a broken local DB never reaches the network
+    await db.close();
+  });
 });

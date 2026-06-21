@@ -75,7 +75,16 @@ export const createAppInitStore = ({
 
       // LOCAL read — must precede any network call. A non-empty cache means the
       // app is fully usable offline; the network sync becomes a background refresh.
-      const hasCache = (await catalog.getAllCards()).length > 0;
+      // This is a raw SQLite read, so it can reject; guard it like init() so a
+      // broken local DB surfaces the hard-error gate rather than rejecting start()
+      // (which, being fire-and-forget in App, would strand a Retry-less spinner).
+      let hasCache: boolean;
+      try {
+        hasCache = (await catalog.getAllCards()).length > 0;
+      } catch (error) {
+        set({ phase: 'error', error: messageOf(error) });
+        return;
+      }
 
       // Local load; the collection store owns its own error status, so a failure
       // here must not block startup.
