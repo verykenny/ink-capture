@@ -357,3 +357,60 @@ describe('parseCardText — long body prose must not beat the short title', () =
     expect(result.name).toBeDefined();
   });
 });
+
+/**
+ * The card NAME is printed in ALL-CAPS; the version/subtitle, the type line
+ * ("Storyborn • Ally"), and flavor/ability prose are not. Case is a far more
+ * reliable name signal than frame height — on real captures a title-case type
+ * line or a body fragment split into short lines can out-MEASURE the title. So
+ * the name is the tallest ALL-CAPS line; the subtitle is the nearest comparable
+ * line below it (any case). Names that aren't all-caps (lowercased OCR) fall back
+ * to the tallest line overall.
+ */
+describe('parseCardText — the name is the tallest ALL-CAPS line', () => {
+  test('a taller title-case type line does not beat the all-caps title (Baloo device case)', () => {
+    const result = parseCardText(
+      ocr([
+        line('BALOO', f(120, 500, 500, 110)), // all-caps name — modest height
+        line('Laid-Back Bear', f(120, 630, 420, 95)), // subtitle, directly below
+        line('Storyborn Ally', f(120, 760, 600, 150)), // type line — TALLER, but title-case + further down
+        line('69/204 EN 10', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '69',
+      name: 'BALOO Laid-Back Bear',
+    });
+  });
+
+  test('a tall all-caps ability KEYWORD followed by lowercase is not all-caps, so the title wins (Gizmoduck device case)', () => {
+    const result = parseCardText(
+      ocr([
+        line('GIZMODUCK', f(120, 500, 700, 130)), // all-caps name
+        line('Suited Up', f(120, 640, 360, 92)), // subtitle
+        // ability line: keyword is caps but the line carries lowercase, and it is
+        // framed TALLER than the title — must not win the name:
+        line(
+          'BLATHERING BLATHERSKITE This character can',
+          f(120, 850, 1900, 180),
+        ),
+        line('105/204 EN 7', f(120, 1500, 300, 60)),
+      ]),
+    );
+    expect(result).toEqual({
+      collectorNumber: '105',
+      name: 'GIZMODUCK Suited Up',
+    });
+  });
+
+  test('falls back to the tallest line when no line is all-caps (lowercased OCR)', () => {
+    const result = parseCardText(
+      ocr([
+        line('Elsa', f(120, 500, 300, 84)), // title-case (not all-caps)
+        line('Snow Queen', f(120, 612, 260, 48)),
+        line('12/204', f(120, 1180, 110, 22)),
+      ]),
+    );
+    expect(result).toEqual({ collectorNumber: '12', name: 'Elsa Snow Queen' });
+  });
+});
