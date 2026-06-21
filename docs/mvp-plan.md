@@ -312,8 +312,8 @@ node:sqlite`) — a scary-looking suite failure that is purely Node-version drif
     **version**, and since the matcher key is `name + version`, a correct title +
     wrong subtitle scores _worse_ than the title alone (Boun: 29% vs ~100% with the
     right subtitle). Captured as **D3** below.
-- **D3 recognition confidence refinement is implemented**
-  (`feature/recognition-confidence`, PR → `development` pending review) — lifts
+- **D3 recognition confidence refinement is complete**
+  (`feature/recognition-confidence`, PR #36 → `development`, merged 2026-06-21) — lifts
   correct reads above the 0.70 auto-confirm floor **without relaxing the
   no-wrong-save guarantee**, all pure logic and test-first. What landed:
   - **(B, the dominant drag) version/subtitle selection in `parseCardText` — now
@@ -838,9 +838,9 @@ native-fs` `unlink`, in a `finally`) in `ScanScreen`; the one-site swap in
 
 #### D3. Recognition confidence refinement — `feature/recognition-confidence`
 
-- **Status: IMPLEMENTED + on-device PASSED on `feature/recognition-confidence`;
-  PR #36 → `development` ready to merge.** Pure logic, test-first, full JS gate
-  green on Node 26 (338 tests). See the §0 D3 entry for the full breakdown.
+- **Status: ✅ COMPLETE — on-device PASSED; PR #36 → `development`, merged
+  2026-06-21.** Pure logic, test-first, full JS gate green on Node 26 (338 tests).
+  See the §0 D3 entry for the full breakdown.
   **Version selection is anchored to the type line AND rotation-aware** — the
   version is the nearest non-type/non-artist line to the name that sits closer than
   the type line, measured on a rotation-detected stacking axis (2026-06-21 device
