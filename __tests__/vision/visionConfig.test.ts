@@ -10,7 +10,10 @@
  */
 
 import Config from 'react-native-config';
-import { shouldUseStubRecognizer } from '@services';
+import {
+  shouldLogRecognitionDiagnostics,
+  shouldUseStubRecognizer,
+} from '@services';
 
 type MutableConfig = Record<string, string | undefined>;
 
@@ -36,5 +39,30 @@ describe('visionConfig.shouldUseStubRecognizer', () => {
   test('is false for any other value', () => {
     (Config as MutableConfig).USE_STUB_RECOGNIZER = 'false';
     expect(shouldUseStubRecognizer()).toBe(false);
+  });
+});
+
+describe('visionConfig.shouldLogRecognitionDiagnostics', () => {
+  afterEach(() => {
+    delete (Config as MutableConfig).DEBUG_RECOGNITION;
+  });
+
+  test('defaults to false (no diagnostics) when the flag is unset', () => {
+    expect(shouldLogRecognitionDiagnostics()).toBe(false);
+  });
+
+  test('is true when DEBUG_RECOGNITION is "true"', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'true';
+    expect(shouldLogRecognitionDiagnostics()).toBe(true);
+  });
+
+  test('is true when DEBUG_RECOGNITION is "1"', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = '1';
+    expect(shouldLogRecognitionDiagnostics()).toBe(true);
+  });
+
+  test('is false for any other value', () => {
+    (Config as MutableConfig).DEBUG_RECOGNITION = 'false';
+    expect(shouldLogRecognitionDiagnostics()).toBe(false);
   });
 });

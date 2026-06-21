@@ -40,6 +40,7 @@ import {
 } from 'react-native-vision-camera';
 import { unlink } from '@dr.pogodin/react-native-fs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { decideRecognition } from '@domain';
 import { useAppServices } from '@state';
 import type { RootStackParamList } from '../navigationTypes';
 
@@ -152,11 +153,37 @@ export function ScanScreen({ navigation }: Props): React.JSX.Element {
       const result = await recognizer.recognize({
         uri: `file://${photo.path}`,
       });
-      navigation.navigate('Confirm', { result });
+      // Gate the read through the D2 routing policy so a low-confidence or
+      // ambiguous scan never silently asserts the wrong #1: confident → confirm
+      // it directly; ambiguous → a top-N manual pick (seeded with the candidates,
+      // so the right same-number card — the Boun case — is on offer); none → an
+      // empty manual search.
+      const decision = decideRecognition(result);
+      switch (decision.kind) {
+        case 'confident':
+          navigation.navigate('Confirm', {
+            card: decision.candidate.card,
+            confidence: decision.candidate.confidence,
+          });
+          break;
+        case 'ambiguous':
+          navigation.navigate('CardSearch', { seed: decision.candidates });
+          break;
+        case 'none':
+          navigation.navigate('CardSearch', {});
+          break;
+      }
     } finally {
       if (path !== undefined) {
         // Best-effort: delete the captured still so card photos don't linger on
         // disk. Cleanup failure must not mask the recognition result.
+        //
+        // Ordering invariant: this unlink runs only AFTER `recognize` above has
+        // resolved, and the OCR engine reads the file fully (synchronously) before
+        // its async recognition completes — so the still always outlives the read.
+        // Do NOT hoist this delete to run concurrently with recognition: that would
+        // race the engine's file read and is NOT the cause of the repeated-capture
+        // failure (a native recognizer-resource leak was — see the D1 OCR engine).
         await unlink(path).catch(() => undefined);
       }
       capturing.current = false;

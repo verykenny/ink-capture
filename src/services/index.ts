@@ -6,5 +6,6 @@ export * from './vision/OcrEngine';
 export * from './vision/MlKitOcrEngine';
 export * from './vision/parseCardText';
 export * from './vision/visionConfig';
+export * from './vision/recognitionDiagnostics';
 export * from './catalog';
 export * from './persistence';

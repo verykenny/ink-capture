@@ -38,6 +38,14 @@ const TRAILING_NUMBER = /\s*\d+\s*$/;
 /** A name candidate needs at least this many letters — excludes stat glyphs ("O4", "43"). */
 const MIN_NAME_LETTERS = 3;
 
+/**
+ * A title/subtitle is short; ability/flavor/effect PROSE runs long. Card names
+ * (and their versions) top out around five words; body lines run seven-plus. On
+ * real captures a wrapped body line can carry a TALLER OCR frame than the title,
+ * so the height heuristic alone is fooled — bound the word count first.
+ */
+const MAX_TITLE_WORDS = 6;
+
 /** A subtitle must be at least this tall relative to the name line… */
 const SUBTITLE_MIN_RATIO = 0.5;
 /** …and sit no further than this multiple of the name's height below it. */
@@ -49,6 +57,31 @@ const FRAMELESS_TITLE_LINES = 2;
 /** Count of ASCII letters in a string — the name-candidate gate. */
 const letterCount = (text: string): number =>
   (text.match(/[a-z]/gi) ?? []).length;
+
+/** Whitespace-separated word count — the title-vs-body discriminator. */
+const wordCount = (text: string): number =>
+  text.split(/\s+/).filter(Boolean).length;
+
+/** A short line that could be a title/subtitle (vs. long body/flavor/effect prose). */
+const isTitleLike = (line: OcrTextLine): boolean =>
+  wordCount(line.text) <= MAX_TITLE_WORDS;
+
+/**
+ * The card name is printed in ALL-CAPS; the version/subtitle, the type line, and
+ * flavor/ability prose are not. A line is "all-caps" when it has real letters and
+ * none of them is lowercase. (An ability KEYWORD is caps, but its line carries the
+ * lowercase effect text after it, so the line as a whole is not all-caps.) Case is
+ * a far more reliable name signal than frame height on real captures.
+ */
+const isAllCaps = (line: OcrTextLine): boolean =>
+  letterCount(line.text) >= MIN_NAME_LETTERS &&
+  line.text === line.text.toUpperCase();
+
+/** The tallest line by frame height (best-effort: missing frames count as 0). */
+const tallestByHeight = (lines: readonly OcrTextLine[]): OcrTextLine =>
+  lines.reduce((tallest, line) =>
+    (line.frame?.height ?? 0) > (tallest.frame?.height ?? 0) ? line : tallest,
+  );
 
 /** Flatten blocks to lines, falling back to a block's own text when it has none. */
 const flattenLines = (ocr: OcrResult): OcrTextLine[] =>
@@ -90,11 +123,13 @@ const toNameCandidate = (line: OcrTextLine): OcrTextLine => {
 
 /**
  * Pick the title lines. When every candidate is framed, the name is the tallest
- * line (taller than the body, once stat glyphs are filtered out) and the subtitle
- * is the nearest comparably-sized line just beneath it — found by height, not a
- * band, because on real cards body/flavor text is tall enough to slip past a
- * ratio. Requiring all-framed means a mixed read (some lines without frames)
- * falls back to reading order rather than dropping the frameless lines.
+ * ALL-CAPS line — the card name is printed in caps, and case survives the frame-
+ * height noise that lets a title-case type line or a split body fragment out-
+ * measure the title. (Falls back to the tallest line overall when nothing is all-
+ * caps, e.g. a fully lowercased OCR.) The subtitle is the nearest comparably-sized
+ * line just beneath the name — found by height, not a band, because on real cards
+ * body/flavor text is tall enough to slip past a ratio. Requiring all-framed means
+ * a mixed read (some lines without frames) falls back to reading order.
  */
 const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
   const everyFramed = candidates.every(line => (line.frame?.height ?? 0) > 0);
@@ -102,9 +137,8 @@ const selectTitleLines = (candidates: OcrTextLine[]): OcrTextLine[] => {
     return candidates.slice(0, FRAMELESS_TITLE_LINES);
   }
 
-  const name = candidates.reduce((tallest, line) =>
-    (line.frame?.height ?? 0) > (tallest.frame?.height ?? 0) ? line : tallest,
-  );
+  const allCaps = candidates.filter(isAllCaps);
+  const name = tallestByHeight(allCaps.length > 0 ? allCaps : candidates);
   const nameY = name.frame?.y ?? 0;
   const nameHeight = name.frame?.height ?? 0;
 
@@ -138,7 +172,14 @@ const parseName = (lines: OcrTextLine[]): string | undefined => {
     return undefined;
   }
 
-  const name = selectTitleLines(candidates)
+  // Prefer short, title-like lines: body/flavor/effect prose runs long and — on
+  // real captures — can carry a taller OCR frame than the name, fooling the
+  // height heuristic. Drop the over-long lines from title contention, but fall
+  // back to all candidates if none qualify (so a card is never left name-less).
+  const titleLike = candidates.filter(isTitleLike);
+  const titleCandidates = titleLike.length > 0 ? titleLike : candidates;
+
+  const name = selectTitleLines(titleCandidates)
     .map(line => line.text)
     .join(' ')
     .replace(/\s+/g, ' ')

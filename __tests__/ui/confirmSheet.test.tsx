@@ -1,10 +1,12 @@
 /**
  * ConfirmSheet — rendered directly over a fake AppServicesProvider with the REAL
  * store on a TestSqliteDatabase (so Add genuinely persists through the
- * repository) and mocked navigation/route. Covers the candidate display, that
- * every FINISHES/CONDITIONS option renders, that Add saves the selected entry
- * and pops to top, that a low confidence never gates Save, and the no-match
- * branch.
+ * repository) and mocked navigation/route. It now takes a chosen `{ card;
+ * confidence? }` (D2 decoupled it from RecognitionResult), so this covers: the
+ * card display, that every FINISHES/CONDITIONS option renders, the confidence
+ * hint when present and its absence when omitted, that Add saves the selected
+ * entry and pops to top, that a low confidence never gates Save, and the
+ * card's-first-finish default.
  *
  * @format
  */
@@ -26,17 +28,13 @@ import {
   createPersistenceService,
 } from '@services';
 import { CONDITIONS, FINISHES } from '@domain';
-import type { RecognitionResult } from '@domain';
 import { TestSqliteDatabase } from '../persistence/testDatabase';
 import { CARD_ELSA, CARD_ELSA_ENCHANTED } from '../fixtures/cards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Confirm'>;
+type ConfirmParams = RootStackParamList['Confirm'];
 
 const FIXED_NOW = '2026-06-18T00:00:00.000Z';
-
-const ELSA_RESULT: RecognitionResult = {
-  candidates: [{ card: CARD_ELSA, confidence: 1 }],
-};
 
 const buildServices = async (): Promise<{
   services: AppServices;
@@ -58,17 +56,17 @@ const navigation = {
   goBack: jest.fn(),
 } as unknown as Props['navigation'];
 
-const routeFor = (result: RecognitionResult) =>
+const routeFor = (params: ConfirmParams) =>
   ({
     key: 'Confirm-1',
     name: 'Confirm',
-    params: { result },
+    params,
   } as unknown as Props['route']);
 
-const renderSheet = (services: AppServices, result: RecognitionResult) =>
+const renderSheet = (services: AppServices, params: ConfirmParams) =>
   render(
     <AppServicesProvider services={services}>
-      <ConfirmSheet navigation={navigation} route={routeFor(result)} />
+      <ConfirmSheet navigation={navigation} route={routeFor(params)} />
     </AppServicesProvider>,
   );
 
@@ -76,9 +74,9 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-test('shows the top candidate, every finish/condition option, and the confidence hint', async () => {
+test('shows the chosen card, every finish/condition option, and the confidence hint', async () => {
   const { db, services } = await buildServices();
-  renderSheet(services, ELSA_RESULT);
+  renderSheet(services, { card: CARD_ELSA, confidence: 1 });
 
   expect(screen.getByText('Elsa — Snow Queen')).toBeOnTheScreen();
   expect(screen.getByText('TFC · #042 · Legendary')).toBeOnTheScreen();
@@ -93,9 +91,30 @@ test('shows the top candidate, every finish/condition option, and the confidence
   await db.close();
 });
 
+test('omits the confidence hint when no confidence is supplied (manual pick / search)', async () => {
+  const { db, services } = await buildServices();
+  renderSheet(services, { card: CARD_ELSA });
+
+  expect(screen.getByText('Elsa — Snow Queen')).toBeOnTheScreen();
+  expect(screen.queryByText(/% match/)).toBeNull();
+  // Save still works without a confidence.
+  expect(screen.getByText('Add to collection')).toBeOnTheScreen();
+  await db.close();
+});
+
+test('"Wrong card? Search manually" routes to CardSearch', async () => {
+  const { db, services } = await buildServices();
+  renderSheet(services, { card: CARD_ELSA, confidence: 1 });
+
+  fireEvent.press(screen.getByText('Wrong card? Search manually'));
+  expect(navigation.navigate).toHaveBeenCalledWith('CardSearch', {});
+  expect(navigation.popToTop).not.toHaveBeenCalled();
+  await db.close();
+});
+
 test('Add saves the selected finish/condition/quantity and pops to the list', async () => {
   const { db, services, store } = await buildServices();
-  renderSheet(services, ELSA_RESULT);
+  renderSheet(services, { card: CARD_ELSA, confidence: 1 });
 
   fireEvent.press(screen.getByText('foil'));
   fireEvent.press(screen.getByText('LP'));
@@ -116,11 +135,9 @@ test('Add saves the selected finish/condition/quantity and pops to the list', as
   await db.close();
 });
 
-test('Save is never gated by confidence — a low-confidence candidate still saves', async () => {
+test('Save is never gated by confidence — a low-confidence card still saves', async () => {
   const { db, services, store } = await buildServices();
-  renderSheet(services, {
-    candidates: [{ card: CARD_ELSA, confidence: 0.05 }],
-  });
+  renderSheet(services, { card: CARD_ELSA, confidence: 0.05 });
 
   expect(screen.getByText('5% match')).toBeOnTheScreen();
   fireEvent.press(screen.getByText('Add to collection'));
@@ -134,9 +151,7 @@ test('defaults the finish to the card’s first availableFinishes (not FINISHES[
   const { db, services, store } = await buildServices();
   // CARD_ELSA_ENCHANTED is foil-only, so the default finish must be 'foil' — which
   // distinguishes availableFinishes[0] from FINISHES[0] ('normal').
-  renderSheet(services, {
-    candidates: [{ card: CARD_ELSA_ENCHANTED, confidence: 1 }],
-  });
+  renderSheet(services, { card: CARD_ELSA_ENCHANTED });
 
   // Press Add without touching any picker — exercise the documented defaults.
   fireEvent.press(screen.getByText('Add to collection'));
@@ -158,7 +173,7 @@ test('a rejected save stays on the sheet and re-enables Add (no popToTop)', asyn
   } as unknown as CollectionStore;
   const services = { collectionStore } as unknown as AppServices;
 
-  renderSheet(services, ELSA_RESULT);
+  renderSheet(services, { card: CARD_ELSA, confidence: 1 });
   fireEvent.press(screen.getByLabelText('Add to collection'));
 
   await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
@@ -167,13 +182,4 @@ test('a rejected save stays on the sheet and re-enables Add (no popToTop)', asyn
   await waitFor(() =>
     expect(screen.getByLabelText('Add to collection')).toBeEnabled(),
   );
-});
-
-test('an empty candidate list shows the no-match branch with no save control', async () => {
-  const { db, services } = await buildServices();
-  renderSheet(services, { candidates: [] });
-
-  expect(screen.getByText('No match found.')).toBeOnTheScreen();
-  expect(screen.queryByText('Add to collection')).toBeNull();
-  await db.close();
 });

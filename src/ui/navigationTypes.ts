@@ -10,10 +10,16 @@
  * @format
  */
 
-import type { RecognitionResult } from '@domain';
+import type { Card, RecognitionCandidate } from '@domain';
 
 export type RootStackParamList = {
   Collection: undefined;
   Scan: undefined;
-  Confirm: { result: RecognitionResult };
+  // The unified manual-pick / search screen. An ambiguous scan seeds it with the
+  // scan's top-N candidates; a manual entry searches by name. Pick → Confirm.
+  CardSearch: { seed?: RecognitionCandidate[] };
+  // A chosen card (+ its scan confidence, when it came from a confident scan)
+  // feeds the one confirm+save screen — whether from a confident scan, an
+  // ambiguous top-N pick, or a manual search. Confidence is a display hint only.
+  Confirm: { card: Card; confidence?: number };
 };

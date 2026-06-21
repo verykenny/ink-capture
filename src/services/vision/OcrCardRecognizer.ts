@@ -19,6 +19,7 @@ import type { CardImage, CardRecognizer } from './CardRecognizer';
 import type { CardMatcher } from './cardMatcher';
 import type { OcrEngine } from './OcrEngine';
 import { parseCardText } from './parseCardText';
+import { logRecognitionDiagnostics } from './recognitionDiagnostics';
 
 /** Collaborators for the OCR recognizer: an OCR engine and the catalog matcher. */
 export interface OcrCardRecognizerDeps {
@@ -32,6 +33,11 @@ export const createOcrCardRecognizer = ({
 }: OcrCardRecognizerDeps): CardRecognizer => ({
   async recognize(image: CardImage): Promise<RecognitionResult> {
     const ocr = await engine.recognizeText(image.uri);
-    return matcher.match(parseCardText(ocr));
+    const source = parseCardText(ocr);
+    const result = await matcher.match(source);
+    // Dev-only, flag-gated: log what live OCR actually read so D2's routing
+    // thresholds can be tuned against real captures. No-op unless DEBUG_RECOGNITION.
+    logRecognitionDiagnostics({ ocr, source, result });
+    return result;
   },
 });

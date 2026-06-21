@@ -64,6 +64,35 @@ export const CARD_MICKEY: Card = {
   availableFinishes: ['normal', 'foil'],
 };
 
+/**
+ * The live "Boun → Billy Bones" case: two DIFFERENT cards that both print
+ * collector number '104' in different sets. With no setCode on the
+ * RecognitionSource the exact tier returns both, ranked only by name similarity,
+ * so a weak live name read can let the wrong one win at a low confidence — which
+ * is exactly what decideRecognition must route to a manual pick rather than
+ * silently assert. Hand-authored (invented subtitles); NEVER bulk data.
+ */
+export const CARD_BOUN: Card = {
+  id: 'URR-104',
+  name: 'Boun',
+  version: 'Tireless Boatman',
+  setCode: 'URR',
+  collectorNumber: '104',
+  rarity: 'Common',
+  availableFinishes: ['normal', 'foil'],
+};
+
+/** The same-number decoy that wins on a weak read — see CARD_BOUN. */
+export const CARD_BILLY_BONES: Card = {
+  id: 'TFC-104',
+  name: 'Billy Bones',
+  version: 'Ship Steward',
+  setCode: 'TFC',
+  collectorNumber: '104',
+  rarity: 'Uncommon',
+  availableFinishes: ['normal', 'foil'],
+};
+
 /** Build a NewCollectionEntry (pre-persistence) over sensible defaults. */
 export const newEntry = (
   overrides: Partial<NewCollectionEntry> = {},
